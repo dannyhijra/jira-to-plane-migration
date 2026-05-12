@@ -49,4 +49,4 @@ All migration events are appended to `state/manifest.jsonl` as one JSON object p
 
 ## Discovery workflow
 
-Use Claude Code with the Atlassian and Plane MCP servers connected. See `AGENTS.md` for the conventions Claude follows in this repo.
+Use Claude Code with the Atlassian and Plane MCP servers connected. See `CLAUDE.md` for the conventions Claude follows in this repo.

@@ -1,4 +1,4 @@
-# AGENTS.md
+# CLAUDE.md
 
 This is a one-shot migration tool moving Bank Hijra's Jira Cloud workspace to a self-hosted Plane instance. The script runs project-by-project from a terminal CLI, with per-entity flags and an append-only JSONL manifest for idempotency.
 
