@@ -1,4 +1,4 @@
-# jira-to-plane-migration
+# JIRA to Plane Migration
 
 One-shot tool to migrate Bank Hijra's Jira Cloud workspace to a self-hosted Plane instance.
 
@@ -33,15 +33,15 @@ bun run migrate verify --jira-project ENG --sample 20
 
 ## What gets migrated
 
-| Jira concept   | Plane concept | Migrator                  |
-| -------------- | ------------- | ------------------------- |
-| Project        | Project       | `src/migrators/projects`  |
-| Issue          | Work item     | `src/migrators/issues`    |
-| Comment        | Comment       | `src/migrators/comments`  |
-| Sprint         | Cycle         | `src/migrators/sprints`   |
-| Epic           | Module        | `src/migrators/epics`     |
-| Attachment     | Attachment    | `src/migrators/attachments` |
-| Issue link     | Relation      | `src/migrators/links`     |
+| Jira concept | Plane concept | Migrator                    |
+| ------------ | ------------- | --------------------------- |
+| Project      | Project       | `src/migrators/projects`    |
+| Issue        | Work item     | `src/migrators/issues`      |
+| Comment      | Comment       | `src/migrators/comments`    |
+| Sprint       | Cycle         | `src/migrators/sprints`     |
+| Epic         | Module        | `src/migrators/epics`       |
+| Attachment   | Attachment    | `src/migrators/attachments` |
+| Issue link   | Relation      | `src/migrators/links`       |
 
 ## State
 
