@@ -1,0 +1,33 @@
+# Field-level mappings from Jira to Plane.
+
+status:
+  # Jira status name → Plane state group
+  # Plane state groups: backlog | unstarted | started | completed | cancelled
+  "Backlog": backlog
+  "To Do": unstarted
+  "In Progress": started
+  "In Review": started
+  "Done": completed
+  "Closed": completed
+  "Cancelled": cancelled
+
+priority:
+  # Jira priority → Plane priority
+  # Plane priorities: urgent | high | medium | low | none
+  "Highest": urgent
+  "High": high
+  "Medium": medium
+  "Low": low
+  "Lowest": low
+  "None": none
+
+labels:
+  # Optional Jira → Plane label renames. Unlisted labels pass through unchanged.
+  # "tech-debt": "technical-debt"
+
+custom_fields:
+  # Jira customfield_XXXX → action
+  # action: drop | description | property:<plane_property_name>
+  # customfield_10100: drop
+  # customfield_10101: description
+  # customfield_10102: "property:Story Points"

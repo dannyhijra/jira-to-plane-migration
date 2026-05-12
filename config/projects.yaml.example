@@ -1,0 +1,15 @@
+# Map each Jira project key to a Plane project config.
+# Run `bun run migrate inspect --jira-project KEY` to seed this from discovery.
+
+projects:
+  ENG:
+    plane_project_name: "Engineering"
+    plane_project_identifier: "ENG"
+    create_if_missing: true
+    migrate_entities: [projects, issues, comments, sprints, epics, attachments, links]
+
+  # OPS:
+  #   plane_project_name: "Operations"
+  #   plane_project_identifier: "OPS"
+  #   create_if_missing: true
+  #   migrate_entities: [issues, comments]

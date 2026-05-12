@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+state/manifest.jsonl
+state/failures.jsonl
+*.log
+.DS_Store
+
+# Filled-in config files contain sensitive mappings — only the .example files are committed
+config/projects.yaml
+config/users.yaml
+config/mappings.yaml

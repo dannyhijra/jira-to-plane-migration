@@ -1,0 +1,10 @@
+# Map Jira accountId (or email) to Plane user_id.
+# Unmapped users will be assigned to `fallback_user_id` and logged.
+# Generate the initial mapping from the Atlassian MCP discovery output.
+
+fallback_user_id: "00000000-0000-0000-0000-000000000000"
+
+users:
+  # "5b10a2844c20165700ede21g":  # Jira accountId
+  #   email: "danny@alamisharia.co.id"
+  #   plane_user_id: "11111111-1111-1111-1111-111111111111"
