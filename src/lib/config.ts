@@ -15,6 +15,24 @@ export interface ProjectConfig {
   plane_project_identifier: string;
   create_if_missing: boolean;
   migrate_entities: string[];
+  /** States to ensure exist on the target project. Order matters for sequencing. */
+  state_seed?: StateSeedEntry[];
+  /** Labels to ensure exist on the target project. */
+  label_seed?: string[];
+  /** Custom work-item properties to ensure exist (best effort — requires Plane issue types). */
+  properties?: PropertySeedEntry[];
+}
+
+export interface StateSeedEntry {
+  name: string;
+  group: "backlog" | "unstarted" | "started" | "completed" | "cancelled";
+  default?: boolean;
+}
+
+export interface PropertySeedEntry {
+  name: string;
+  display_name: string;
+  type: "url" | "text" | "number" | "date" | "select" | "multi-select";
 }
 
 export interface UserEntry {
@@ -61,12 +79,13 @@ export async function loadConfig(): Promise<Config> {
     fallback_user_id: null,
     users: {},
   });
-  const mappingsFile = await loadYaml<MappingsConfig>("config/mappings.yaml", {
-    status: {},
-    priority: {},
-    labels: {},
-    custom_fields: {},
-  });
+  const mappingsRaw = await loadYaml<Partial<MappingsConfig> | null>("config/mappings.yaml", {});
+  const mappingsFile: MappingsConfig = {
+    status: (mappingsRaw?.status ?? {}) as Record<string, string>,
+    priority: (mappingsRaw?.priority ?? {}) as Record<string, string>,
+    labels: (mappingsRaw?.labels ?? {}) as Record<string, string>,
+    custom_fields: (mappingsRaw?.custom_fields ?? {}) as Record<string, string>,
+  };
 
   return {
     jira: {

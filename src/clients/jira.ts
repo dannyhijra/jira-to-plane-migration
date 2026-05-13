@@ -1,6 +1,52 @@
 import type { Config } from "../lib/config";
 import { withRetry } from "../lib/retry";
 
+/** Subset of Jira fields we depend on. Extra unknown fields pass through. */
+export interface JiraUser {
+  accountId: string;
+  emailAddress?: string;
+  displayName: string;
+  active?: boolean;
+}
+
+export interface AdfDoc {
+  type: "doc";
+  version: number;
+  content: AdfNode[];
+}
+
+export interface AdfNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: AdfNode[];
+  text?: string;
+  marks?: { type: string; attrs?: Record<string, unknown> }[];
+}
+
+export interface JiraIssue {
+  id: string;
+  key: string;
+  fields: {
+    summary: string;
+    description: AdfDoc | null;
+    issuetype: { name: string };
+    status: { name: string };
+    priority: { name: string } | null;
+    labels: string[];
+    assignee: JiraUser | null;
+    creator: JiraUser | null;
+    reporter: JiraUser | null;
+    created: string;
+    updated: string;
+    [customField: string]: unknown;
+  };
+}
+
+interface JiraSearchResponse {
+  issues: JiraIssue[];
+  nextPageToken?: string;
+}
+
 export class JiraClient {
   private readonly baseUrl: string;
   private readonly auth: string;
@@ -30,33 +76,47 @@ export class JiraClient {
     });
   }
 
-  // TODO: implement when wiring up `projects` migrator
-  async listProjects(): Promise<unknown[]> {
-    throw new Error("JiraClient.listProjects: not implemented");
+  /**
+   * JQL search via /rest/api/3/search/jql (the new endpoint; /search is deprecated).
+   * Returns the page plus a token to fetch the next page. The token is undefined on the last page.
+   */
+  async searchIssues(args: {
+    jql: string;
+    fields: string[];
+    nextPageToken?: string;
+    pageSize?: number;
+  }): Promise<JiraSearchResponse> {
+    const body = {
+      jql: args.jql,
+      fields: args.fields,
+      maxResults: args.pageSize ?? 50,
+      ...(args.nextPageToken ? { nextPageToken: args.nextPageToken } : {}),
+    };
+    return this.request<JiraSearchResponse>("/rest/api/3/search/jql", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   }
 
-  // TODO: implement — use /rest/api/3/search/jql with nextPageToken pagination
-  async searchIssues(_jql: string, _nextPageToken?: string): Promise<unknown> {
-    throw new Error("JiraClient.searchIssues: not implemented");
+  async getIssue(key: string, fields?: string[]): Promise<JiraIssue> {
+    const qs = fields && fields.length ? `?fields=${encodeURIComponent(fields.join(","))}` : "";
+    return this.request<JiraIssue>(`/rest/api/3/issue/${encodeURIComponent(key)}${qs}`);
   }
 
-  // TODO: implement
-  async getIssue(_key: string): Promise<unknown> {
-    throw new Error("JiraClient.getIssue: not implemented");
-  }
-
-  // TODO: implement
+  // Implemented when /migrate-implement comments runs.
   async listComments(_issueIdOrKey: string): Promise<unknown[]> {
     throw new Error("JiraClient.listComments: not implemented");
   }
 
-  // TODO: implement
   async listAttachments(_issueIdOrKey: string): Promise<unknown[]> {
     throw new Error("JiraClient.listAttachments: not implemented");
   }
 
-  // TODO: implement — sprints come from the Agile API: /rest/agile/1.0/board/{boardId}/sprint
   async listSprints(_boardId: number): Promise<unknown[]> {
     throw new Error("JiraClient.listSprints: not implemented");
+  }
+
+  async listProjects(): Promise<unknown[]> {
+    throw new Error("JiraClient.listProjects: not implemented");
   }
 }
