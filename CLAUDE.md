@@ -31,7 +31,7 @@ Plane starts mostly empty. Team members will register **later** using their comp
 
 Migration uses a **three-stage flow**:
 
-1. **Invite** (`/migrate-invite-members`, run once early) — workspace invitations go out so people sign up in parallel
+1. **Invite** (`/migrate-invite-members`, manual UI checklist run once early) — workspace invitations go out so people sign up in parallel. No code path: the Plane self-hosted instance gates invite endpoints behind a session cookie + Cloudflare Bot Management that blocks scripted clients, so this stage is just a printed list pasted into Plane's Settings → Members UI.
 2. **Migrate** (`/migrate-pilot`, `/migrate-scale`) — for each work item, look up the Jira assignee email in current Plane members; if hit, set `assignees`; if miss, leave empty AND prepend a migration prefix to the description capturing the original creator and assignee emails. Comments also get a prefix line capturing the original author email.
 3. **Reassign** (`/migrate-reassign`, run periodically during onboarding) — parse description prefixes on existing work items, look up emails in the now-larger member list, set assignees, optionally strip prefixes
 
@@ -43,7 +43,7 @@ The API key owner ("migration bot") only ever appears as `created_by` and commen
 | ----------------------------------- | ---------------------------------------------------------- | ---------- |
 | `/migrate-discover <PROJECT>`       | Inventory Jira + Plane state into `discovery/<PROJECT>.md` | Phase 1    |
 | `/migrate-configure <PROJECT>`      | Fill config/\*.yaml from discovery, propose diffs first    | Phase 2    |
-| `/migrate-invite-members`           | Pre-invite team via Plane workspace invitations API        | Stage 1    |
+| `/migrate-invite-members`           | Print email list for manual invite via Plane Members UI    | Stage 1    |
 | `/migrate-implement <entity>`       | Implement clients + one migrator (issues, comments, etc.)  | Phase 3    |
 | `/migrate-pilot <PROJECT> <entity>` | Dry-run + 5 real + verify                                  | Phases 4–6 |
 | `/migrate-scale <PROJECT> <entity>` | Full run with `--resume`                                   | Phase 7    |
@@ -100,6 +100,6 @@ Current approach (Option A from setup): the API key in `.env` belongs to the per
 - Comments show the same — cosmetic only
 - Original authorship is preserved in the migration prefix (real audit trail)
 
-**Workspace admin role is required** for the `/migrate-invite-members` command to succeed (workspace invitation endpoint requires admin/owner).
+**Workspace admin role is required in the Plane UI** to invite new members (the UI button only appears for admin/owner). The API key role doesn't matter for Stage 1 because Stage 1 is manual.
 
 If/when a dedicated service account is created later, swap the API key in `.env` — no code change needed.

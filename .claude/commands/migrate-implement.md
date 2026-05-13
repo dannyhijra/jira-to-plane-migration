@@ -1,11 +1,11 @@
 ---
 description: Implement a migrator for one entity type
-argument-hint: <entity: issues|comments|sprints|epics|attachments|links|invitations|reassign>
+argument-hint: <entity: issues|comments|sprints|epics|attachments|links|reassign>
 ---
 
 Implement the migrator for entity: **$ARGUMENTS**
 
-Valid entities: `issues`, `comments`, `sprints`, `epics`, `attachments`, `links`, `invitations`, `reassign`.
+Valid entities: `issues`, `comments`, `sprints`, `epics`, `attachments`, `links`, `reassign`.
 
 ## Required reading before writing code
 
@@ -36,5 +36,4 @@ Valid entities: `issues`, `comments`, `sprints`, `epics`, `attachments`, `links`
 - `epics`: creates Plane modules; child issues are linked via parent or "Epic Link" custom field
 - `attachments`: slowest; stream downloads, use Plane's 3-step upload (credentials → upload → complete)
 - `links`: run LAST; both sides of every link must already exist in Plane
-- `invitations`: special — sourced from `config/users.yaml`, keyed by email not Jira key
 - `reassign`: an **updater**, not creator — modifies existing Plane work items based on the description prefix

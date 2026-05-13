@@ -24,18 +24,17 @@ The `assignees` field we *can* control — but only if those user_ids exist in t
 
 ## The three-stage flow
 
-### Stage 1 — Invite (one-time, run early)
+### Stage 1 — Invite (one-time, manual UI)
 
-Command: `/migrate-invite-members`
+Command: `/migrate-invite-members` (prints a checklist — there is no code path)
 
-- Reads `config/users.yaml`
-- Calls `POST /api/v1/workspaces/{slug}/invitations/` per unique email with `role: 15` (Member)
-- Idempotent via `state/manifest.jsonl` entries with `entity: "invitation"`, keyed by email
-- Treats "already invited" responses as `skipped`, not `failed`
+- Read `config/users.yaml` and print every unique email where `role != deactivated` and `email != null`
+- User pastes the list into Plane → workspace → Settings → Members → Invite, role = Member
+- No manifest entry — Plane's own Members page is the source of truth
 
 Purpose: get invitation emails into people's inboxes so they sign up in parallel with migration work. **Does not block Stage 2** — migration runs regardless of acceptance.
 
-Requires the API key owner to be **workspace admin or owner**. If not, the call 403s and Stage 1 fails. The migration bot must be elevated to admin in the Plane workspace before this stage.
+Why manual: the Plane self-hosted public API (`X-API-Key`) is project-scoped on this instance — workspace-scoped endpoints 404. The internal web API at `/api/workspaces/{slug}/invitations/` requires a session cookie AND sits behind Cloudflare Bot Management, which TLS-fingerprints non-browser clients and challenges them regardless of cookies. Sending 10–20 invites once per project via the UI is dramatically less effort than the alternatives (headless browser, curl-impersonate, etc.).
 
 ### Stage 2 — Migrate (per project, the bulk work)
 

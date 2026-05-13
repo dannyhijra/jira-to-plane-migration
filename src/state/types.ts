@@ -7,7 +7,8 @@ export type Entity =
   | "cycle"
   | "module"
   | "attachment"
-  | "link";
+  | "link"
+  | "reassign";
 
 export type ManifestStatus = "ok" | "failed" | "skipped";
 

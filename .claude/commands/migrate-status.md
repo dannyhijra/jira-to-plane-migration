@@ -17,7 +17,6 @@ Argument: **$ARGUMENTS** (optional project key; if absent, show all projects)
    ```
    project | entity        |  ok  | failed | skipped | last updated
    --------|---------------|------|--------|---------|--------------------
-   ENG     | invitation    |   12 |      0 |       3 | 2025-05-12T08:00:00Z
    ENG     | work_item     |  187 |      4 |       0 | 2025-05-12T09:30:00Z
    ENG     | comment       |    0 |      0 |       0 | -
    ```

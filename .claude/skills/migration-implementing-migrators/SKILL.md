@@ -1,6 +1,6 @@
 ---
 name: migration-implementing-migrators
-description: Code patterns and the contract for implementing migrator modules under src/migrators/. Covers the standard migrator structure, mandatory behaviors (dry-run, resume, retry, manifest), pagination, error handling, and entity-specific notes for issues, comments, sprints, epics, attachments, links, invitations, and reassign. Use whenever writing or editing a migrator file.
+description: Code patterns and the contract for implementing migrator modules under src/migrators/. Covers the standard migrator structure, mandatory behaviors (dry-run, resume, retry, manifest), pagination, error handling, and entity-specific notes for issues, comments, sprints, epics, attachments, links, and reassign. Use whenever writing or editing a migrator file.
 ---
 
 # Implementing migrators
@@ -151,7 +151,6 @@ Read `.claude/skills/migration-user-strategy/SKILL.md` for the full strategy. Su
 - **epics** — Jira epics are issues with `issuetype = Epic`. Query them separately. Each epic → one Plane module. Child issues link via the `Epic Link` custom field or the `parent` field (next-gen projects).
 - **attachments** — the slowest entity. Expect partial failures and retry liberally. Three-step Plane upload: get upload credentials → upload file (often to S3 presigned URL) → complete upload. Stream the Jira download into the Plane upload to avoid buffering large files in memory.
 - **links** — run LAST. Both sides of every link must already exist in Plane. Map Jira link types (`blocks`, `is blocked by`, `relates to`, etc.) to Plane relation types.
-- **invitations** — special. Source is `config/users.yaml`, not Jira. Keyed by email. No `planeProjectId` needed (workspace-level operation). Response of "already invited" is `skipped`, not `failed`.
 - **reassign** — an **updater** (`PATCH`), not a creator. Reads existing Plane work items, parses the description prefix, looks up the email in the current member list, patches `assignees` if resolvable. Idempotent on the `entity: "reassign"` manifest entries.
 
 ## Pitfalls

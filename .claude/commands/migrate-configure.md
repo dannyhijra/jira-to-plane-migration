@@ -18,7 +18,7 @@ Target project: **$ARGUMENTS**
 4. **STOP and present the diffs.** Do NOT write the files. Ask the user to approve each diff explicitly ("yes apply" / "no change X").
 5. After explicit per-file approval, apply the approved diffs.
 6. Suggest the next step:
-   - If `state/manifest.jsonl` has no `entity: "invitation"` entries yet → `/migrate-invite-members`
+   - If invitations haven't been sent yet (the user hasn't run Stage 1) → `/migrate-invite-members` (manual UI checklist)
    - Otherwise → `/migrate-implement issues`
 
 ## Hard rules
