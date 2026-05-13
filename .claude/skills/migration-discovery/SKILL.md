@@ -51,20 +51,31 @@ For each: `accountId`, `displayName`, `emailAddress` (if visible to the API toke
 
 ## Plane side inventory (Plane MCP)
 
-### Workspace level
-- All existing projects (in case `<PROJECT>` already has a stub)
-- Workspace members with `user_id` and email — this is the lookup we use for assignee resolution
-- Default state groups (should be the standard 5)
-- Default priorities (should be the standard 5)
+Plane state is split between **workspace-global** (lives in `config/_plane.md`, treated as a workspace fact — auto-refreshed every run, no-op if unchanged) and **per-project** (lives in `discovery/<PROJECT>.md`). The per-project doc references `config/_plane.md` rather than duplicating it.
 
-### Per-project (if a Plane project already exists for `<PROJECT>`)
-- Existing states and their state_group
-- Existing labels
-- Existing custom properties on work item types
+### Workspace-global (refresh `config/_plane.md` on every run, no-op if nothing changed)
+Every `/migrate-discover` run re-queries the workspace-global facts and **rewrites `config/_plane.md` only if the captured state differs** from what's currently on disk. Read the existing file first, diff it against fresh MCP results, and skip the write if the content would be identical. This keeps git diffs clean while ensuring the file stays current.
+
+- All existing projects (identifier + name + id)
+- Workspace members with `user_id` and email — the assignee-resolution lookup
+- Default state groups (should be the standard 5) + any custom states reused across projects
+- Default priorities (should be the standard 5)
+- Access notes (VPN / Cloudflare Access / endpoint quirks observed)
+
+### Per-project Plane facts (write into `discovery/<PROJECT>.md`)
+Only what's specific to the migration target:
+
+- Whether a Plane project already exists for `<PROJECT>` (and if yes: its id, existing states, labels, custom properties on work item types)
+- Diff between Jira project's user set and `_plane.md` member list → Stage 1 invitation list
+- Proposed Plane project identifier if creating new
 
 ## Output format
 
-Write everything to `discovery/<PROJECT>.md`:
+Two files:
+- `config/_plane.md` — workspace-global Plane state. Auto-refreshed every run; rewrite only if changed.
+- `discovery/<PROJECT>.md` — per-project doc, format below. The Plane section here is short and links to `config/_plane.md` rather than duplicating it.
+
+Per-project file format:
 
 ```markdown
 # Discovery: <PROJECT>
@@ -115,20 +126,15 @@ Generated: <ISO timestamp> by Claude Code
 | --------- | ----------- | ----- | -------- |
 | ...       | ...         | ...   | ...      |
 
-## Plane current state
+## Plane target (project-specific)
 
-### Workspace members (resolvable for assignee)
-| user_id | email |
-| ------- | ----- |
-| ...     | ...   |
+Workspace-wide Plane state lives in [`config/_plane.md`](../config/_plane.md). Below is only what's specific to `<PROJECT>`.
 
-### Existing projects
-| identifier | name |
-| ---------- | ---- |
-| ...        | ...  |
-
-### State groups available
-backlog, unstarted, started, completed, cancelled (default)
+- Target project: does/does-not exist yet in Plane. (If exists: id, current state set, labels, custom properties.)
+- Assignee overlap with current Plane members: count and list mismatched users
+- Stage 1 invitation list: emails from this project's Jira users that aren't in `_plane.md` yet
+- Proposed Plane project identifier (if new)
+- Proposed state seed (which `_plane.md` template states to use, plus any project-specific custom states)
 
 ## Decisions needed
 
