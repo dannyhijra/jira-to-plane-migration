@@ -17,9 +17,16 @@ export interface ProjectConfig {
   migrate_entities: string[];
 }
 
+export interface UserEntry {
+  email: string | null;
+  displayName?: string;
+  role?: "member" | "admin" | "guest" | "deactivated";
+  plane_user_id?: string;
+}
+
 export interface UsersConfig {
-  fallback_user_id: string;
-  users: Record<string, { email: string; plane_user_id: string }>;
+  fallback_user_id: string | null;
+  users: Record<string, UserEntry>;
 }
 
 export interface MappingsConfig {
@@ -51,7 +58,7 @@ export async function loadConfig(): Promise<Config> {
     { projects: {} },
   );
   const usersFile = await loadYaml<UsersConfig>("config/users.yaml", {
-    fallback_user_id: "",
+    fallback_user_id: null,
     users: {},
   });
   const mappingsFile = await loadYaml<MappingsConfig>("config/mappings.yaml", {
