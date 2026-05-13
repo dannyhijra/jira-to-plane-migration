@@ -18,7 +18,7 @@ When using the **Atlassian Rovo MCP**, default to:
 
 When using the **Plane MCP**, default to:
 
-- `workspace slug = "hijra-bank"`
+- `workspace slug = "hijra"`
 - `limit: 25` for all list operations
 - `PLANE_BASE_URL` from `.env` for the self-hosted endpoint
 
