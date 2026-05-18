@@ -47,6 +47,21 @@ interface JiraSearchResponse {
   nextPageToken?: string;
 }
 
+export interface JiraComment {
+  id: string;
+  author: JiraUser | null;
+  body: AdfDoc | null;
+  created: string;
+  updated: string;
+}
+
+interface JiraCommentsResponse {
+  startAt: number;
+  maxResults: number;
+  total: number;
+  comments: JiraComment[];
+}
+
 export class JiraClient {
   private readonly baseUrl: string;
   private readonly auth: string;
@@ -103,9 +118,23 @@ export class JiraClient {
     return this.request<JiraIssue>(`/rest/api/3/issue/${encodeURIComponent(key)}${qs}`);
   }
 
-  // Implemented when /migrate-implement comments runs.
-  async listComments(_issueIdOrKey: string): Promise<unknown[]> {
-    throw new Error("JiraClient.listComments: not implemented");
+  /**
+   * Paginated GET /rest/api/3/issue/{key}/comment.
+   * Orders ASC by created date — preserves the conversation order on Plane.
+   */
+  async listComments(issueIdOrKey: string, batch = 100): Promise<JiraComment[]> {
+    const out: JiraComment[] = [];
+    let startAt = 0;
+    while (true) {
+      const qs = `?startAt=${startAt}&maxResults=${batch}&orderBy=created`;
+      const page = await this.request<JiraCommentsResponse>(
+        `/rest/api/3/issue/${encodeURIComponent(issueIdOrKey)}/comment${qs}`,
+      );
+      out.push(...page.comments);
+      if (out.length >= page.total || page.comments.length === 0) break;
+      startAt += page.comments.length;
+    }
+    return out;
   }
 
   async listAttachments(_issueIdOrKey: string): Promise<unknown[]> {

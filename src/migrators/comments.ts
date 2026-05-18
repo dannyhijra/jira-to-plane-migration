@@ -1,16 +1,109 @@
 import type { MigratorArgs } from "./issues";
 import type { MigrationResult } from "../state/types";
+import type { JiraComment } from "../clients/jira";
 import { logger } from "../lib/logger";
+import { append, hasMigrated, loadManifest } from "../state/manifest";
+import { adfToMarkdown } from "../lib/adf";
 
 /**
  * Migrate Jira comments to Plane comments.
  *
- * Notes:
- * - Run AFTER issues — needs the plane_id from the manifest to know which work item to attach to.
- * - Author mapping: use src/mappers/users.ts; fallback users get a "Originally posted by <email>" prefix.
- * - Timestamps cannot usually be backdated on Plane — surface this loss in the comment body.
+ * - Runs AFTER issues — looks up plane_id from manifest `work_item` entries.
+ * - Author and created_at on Plane are always the API key owner / migration time
+ *   (Plane API constraint). Original author + date are preserved in a prefix line.
+ * - Manifest key: `<JIRA_ISSUE_KEY>#<COMMENT_ID>` (e.g. `LRP-3#107553`).
  */
 export async function migrateComments(args: MigratorArgs): Promise<MigrationResult> {
-  logger.info(`migrateComments: not implemented yet (project=${args.ctx.jiraProject})`);
-  return { ok: true, migrated: 0, skipped: 0, failed: 0, notes: "stub" };
+  const { ctx, jira, plane, planeProjectId } = args;
+  logger.info(`migrateComments start: project=${ctx.jiraProject} dryRun=${ctx.dryRun}`);
+
+  const manifest = await loadManifest();
+  const workItems = [...manifest.values()].filter(
+    (e) => e.entity === "work_item" && e.project === ctx.jiraProject && e.status === "ok" && e.plane_id,
+  );
+  logger.info(`migrateComments: ${workItems.length} work_item manifest entries to scan for comments`);
+
+  let migrated = 0;
+  let skipped = 0;
+  let failed = 0;
+  let processed = 0;
+
+  for (const wi of workItems) {
+    if (ctx.limit && processed >= ctx.limit) break;
+
+    let comments: JiraComment[];
+    try {
+      comments = await jira.listComments(wi.jira_key, ctx.batch);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.warn(`listComments failed for ${wi.jira_key}: ${error}`);
+      continue;
+    }
+
+    for (const c of comments) {
+      if (ctx.limit && processed >= ctx.limit) break;
+      processed++;
+
+      const commentKey = `${wi.jira_key}#${c.id}`;
+      if (ctx.resume && (await hasMigrated("comment", commentKey))) continue;
+
+      try {
+        const commentHtml = wrapAsHtml(buildCommentBody(c));
+
+        if (ctx.dryRun) {
+          logger.info(`[dry-run] ${commentKey} → ${commentHtml.slice(0, 160)}`);
+          skipped++;
+          continue;
+        }
+
+        const created = await plane.addComment(planeProjectId, wi.plane_id!, { comment_html: commentHtml });
+        await append({
+          entity: "comment",
+          project: ctx.jiraProject,
+          jira_key: commentKey,
+          plane_id: created.id,
+          status: "ok",
+          at: new Date().toISOString(),
+        });
+        migrated++;
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        logger.warn(`failed: ${commentKey}: ${error}`);
+        if (!ctx.dryRun) {
+          await append({
+            entity: "comment",
+            project: ctx.jiraProject,
+            jira_key: commentKey,
+            status: "failed",
+            at: new Date().toISOString(),
+            error: error.slice(0, 500),
+          });
+        }
+        failed++;
+      }
+    }
+  }
+
+  logger.info(`migrateComments done: migrated=${migrated} skipped=${skipped} failed=${failed}`);
+  return { ok: failed === 0, migrated, skipped, failed };
+}
+
+function buildCommentBody(c: JiraComment): string {
+  const authorEmail = c.author?.emailAddress ?? null;
+  const authorName = c.author?.displayName ?? null;
+  const who = authorEmail ? `\`${authorEmail}\`` : authorName ? `\`${authorName}\`` : "`unknown`";
+  const date = (c.created ?? "").slice(0, 10);
+  const prefix = `> _Originally posted by ${who} on ${date}_`;
+  const body = adfToMarkdown(c.body);
+  return [prefix, body].filter((s) => s.length > 0).join("\n\n");
+}
+
+/**
+ * Same HTML wrapping rule as work-item descriptions: wrap in <p>, neutralise
+ * raw HTML tags, leave markdown chars (`>`, `_`, `*`, backticks) literal.
+ */
+function wrapAsHtml(markdown: string): string {
+  if (!markdown) return "";
+  const safe = markdown.replace(/<(\/?[a-zA-Z][^>]*)>/g, "&lt;$1&gt;");
+  return `<p>${safe}</p>`;
 }

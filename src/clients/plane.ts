@@ -202,12 +202,23 @@ export class PlaneClient {
     });
   }
 
+  /**
+   * Adds a comment to a Plane work item. Comment author is always the API key
+   * owner — there is no API field to override it. Original Jira author is
+   * preserved in the comment_html prefix at the caller (see migrators/comments.ts).
+   */
   async addComment(
-    _projectId: string,
-    _workItemId: string,
-    _payload: { comment_html: string; actor: string },
-  ): Promise<unknown> {
-    throw new Error("PlaneClient.addComment: not implemented");
+    projectId: string,
+    workItemId: string,
+    payload: { comment_html: string; access?: "EXTERNAL" | "INTERNAL" },
+  ): Promise<{ id: string }> {
+    return this.request<{ id: string }>(
+      this.projectPath(projectId, `/issues/${workItemId}/comments/`),
+      {
+        method: "POST",
+        body: JSON.stringify({ access: "INTERNAL", ...payload }),
+      },
+    );
   }
 
   async createCycle(
