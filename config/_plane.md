@@ -2,7 +2,7 @@
 
 Workspace-wide Plane state captured once and referenced by every per-project discovery doc. Refresh when membership or workspace structure changes, not per Jira project.
 
-Last captured: 2026-05-13 by Claude Code
+Last captured: 2026-05-18 by Claude Code
 Workspace slug: `hijra`
 Base URL: `https://plane.hq.hijra.dev`
 
@@ -13,10 +13,12 @@ Base URL: `https://plane.hq.hijra.dev`
 
 ## Existing projects
 
-| identifier | name                | id                                     |
-| ---------- | ------------------- | -------------------------------------- |
-| II         | IT & Infrastructure | 90adce1b-a90b-4bde-9898-41f22d23c73c   |
-| PROJE      | Compliance          | cb2d65e7-5dc0-4588-89c1-f41299f91aa7   |
+| identifier | name                 | id                                     |
+| ---------- | -------------------- | -------------------------------------- |
+| II         | IT & Infrastructure  | 90adce1b-a90b-4bde-9898-41f22d23c73c   |
+| PROJE      | Compliance           | cb2d65e7-5dc0-4588-89c1-f41299f91aa7   |
+| LDRH       | Legal Review Request | 73de3f92-3f2d-4355-a6e0-bc84ed313e5e   |
+| LRP        | Legal Request PKS    | ec9b3331-893a-468b-89b2-f8801c97a5af   |
 
 Add a row here whenever a new Plane project is created. Per-project discovery docs should note "new — to be created" if the target Jira key has no Plane equivalent yet.
 
