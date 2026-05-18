@@ -1,7 +1,6 @@
 import type { JiraIssue } from "../clients/jira";
 import type { MappingsConfig, PropertySeedEntry } from "../lib/config";
 import { adfToMarkdown } from "../lib/adf";
-import { customFieldAction } from "./customFields";
 
 export interface PrefixInputs {
   jiraKey: string;
@@ -26,11 +25,12 @@ export function buildDescription(
   issue: JiraIssue,
   inputs: PrefixInputs,
   mappings: MappingsConfig,
+  jiraProject: string,
   propertySeed: PropertySeedEntry[] | undefined,
 ): string {
   const prefix = renderPrefix(inputs);
   const body = adfToMarkdown(issue.fields.description);
-  const footer = renderCustomFieldFooter(issue, mappings, propertySeed);
+  const footer = renderCustomFieldFooter(issue, mappings, jiraProject, propertySeed);
 
   return [prefix, body, footer].filter((s) => s.length > 0).join("\n\n");
 }
@@ -52,16 +52,20 @@ function renderPrefix(inp: PrefixInputs): string {
  * work-item properties, but the property system requires the project to have
  * issue types enabled — not the case on this Plane instance. As a fallback we
  * append the value to the description so the data is preserved.
+ *
+ * `builtin:*` and `drop` entries are intentionally not surfaced here.
  */
 function renderCustomFieldFooter(
   issue: JiraIssue,
   mappings: MappingsConfig,
+  jiraProject: string,
   propertySeed: PropertySeedEntry[] | undefined,
 ): string {
+  const projectMap = mappings.custom_fields[jiraProject] ?? {};
   const propsByName = new Map((propertySeed ?? []).map((p) => [p.name, p]));
   const lines: string[] = [];
 
-  for (const [fieldId, action] of Object.entries(mappings.custom_fields)) {
+  for (const [fieldId, action] of Object.entries(projectMap)) {
     if (typeof action !== "string" || !action.startsWith("property:")) continue;
     const raw = issue.fields[fieldId];
     if (raw == null || raw === "") continue;
@@ -75,10 +79,6 @@ function renderCustomFieldFooter(
   if (lines.length === 0) return "";
   // Mark this block so a future "real properties" migration can find and strip it.
   return ["<!-- migrated-custom-fields -->", ...lines].join("\n");
-  // The wrapping HTML comment is recognised even after HTML conversion since
-  // Plane's editor preserves it verbatim in description_html.
-
-  void customFieldAction; // silence unused-import lint until we wire real properties
 }
 
 function formatValue(v: unknown): string {

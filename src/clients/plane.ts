@@ -190,6 +190,10 @@ export class PlaneClient {
       priority?: string;
       assignees?: string[];
       labels?: string[];
+      /** ISO date (YYYY-MM-DD). Built-in Plane field. */
+      start_date?: string | null;
+      /** ISO date (YYYY-MM-DD). Built-in Plane field. */
+      target_date?: string | null;
     },
   ): Promise<PlaneWorkItem> {
     return this.request<PlaneWorkItem>(this.projectPath(projectId, "/issues/"), {

@@ -21,6 +21,15 @@ export interface ProjectConfig {
   label_seed?: string[];
   /** Custom work-item properties to ensure exist (best effort — requires Plane issue types). */
   properties?: PropertySeedEntry[];
+  /** Modules to ensure exist on the target project. Per-issue assignment lives in the modules migrator. */
+  module_seed?: string[];
+  /**
+   * If set, the modules migrator routes each work item to the module whose
+   * name matches the value of this Jira field (e.g. `customfield_10421` →
+   * `PKS` / `NDA` / `MOU PAYUNG` on LRP). Issues with a null/unknown value
+   * are left unassigned.
+   */
+  modules_from_field?: string;
 }
 
 export interface StateSeedEntry {
@@ -33,6 +42,8 @@ export interface PropertySeedEntry {
   name: string;
   display_name: string;
   type: "url" | "text" | "number" | "date" | "select" | "multi-select";
+  /** Only used when type is "select" / "multi-select". */
+  options?: string[];
 }
 
 export interface UserEntry {
@@ -48,10 +59,12 @@ export interface UsersConfig {
 }
 
 export interface MappingsConfig {
-  status: Record<string, string>;
+  /** Per-project: jira status name → plane state name. */
+  status: Record<string, Record<string, string>>;
   priority: Record<string, string>;
   labels: Record<string, string>;
-  custom_fields: Record<string, string>;
+  /** Per-project: jira field id → action ("drop" | "description" | "property:<name>" | "builtin:<field>"). */
+  custom_fields: Record<string, Record<string, string>>;
 }
 
 function requireEnv(name: string): string {
@@ -81,10 +94,10 @@ export async function loadConfig(): Promise<Config> {
   });
   const mappingsRaw = await loadYaml<Partial<MappingsConfig> | null>("config/mappings.yaml", {});
   const mappingsFile: MappingsConfig = {
-    status: (mappingsRaw?.status ?? {}) as Record<string, string>,
+    status: (mappingsRaw?.status ?? {}) as Record<string, Record<string, string>>,
     priority: (mappingsRaw?.priority ?? {}) as Record<string, string>,
     labels: (mappingsRaw?.labels ?? {}) as Record<string, string>,
-    custom_fields: (mappingsRaw?.custom_fields ?? {}) as Record<string, string>,
+    custom_fields: (mappingsRaw?.custom_fields ?? {}) as Record<string, Record<string, string>>,
   };
 
   return {

@@ -8,6 +8,7 @@ import { mapJiraPriorityToPlanePriority } from "../mappers/priority";
 import { mapJiraLabels } from "../mappers/labels";
 import { buildPlaneMemberLookup, resolveJiraAssignee } from "../mappers/users";
 import { buildDescription } from "../mappers/description";
+import { customFieldAction, customFieldIds, type BuiltinField } from "../mappers/customFields";
 
 export interface MigratorArgs {
   ctx: MigrationContext;
@@ -16,8 +17,8 @@ export interface MigratorArgs {
   planeProjectId: string;
 }
 
-/** Jira fields requested per issue. Keep tight to minimize payload size. */
-const ISSUE_FIELDS = [
+/** Jira built-in fields requested for every issue regardless of project. */
+const BASE_ISSUE_FIELDS = [
   "summary",
   "description",
   "status",
@@ -29,9 +30,6 @@ const ISSUE_FIELDS = [
   "reporter",
   "created",
   "updated",
-  // Custom fields appear in mappings.yaml; we pull them via *all when needed.
-  // For LDRH the only meaningful one is customfield_10468.
-  "customfield_10468",
 ];
 
 export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult> {
@@ -44,12 +42,9 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
   logger.info(`migrateIssues start: project=${ctx.jiraProject} dryRun=${ctx.dryRun}`);
 
   // Pre-fetch reference data once per run.
-  const [members, planeStates, planeLabels] = ctx.dryRun
-    ? await Promise.all([
-        planeProjectId === "dry-run-project-id" ? Promise.resolve([]) : plane.listProjectMembers(planeProjectId),
-        planeProjectId === "dry-run-project-id" ? Promise.resolve([]) : plane.listStates(planeProjectId),
-        planeProjectId === "dry-run-project-id" ? Promise.resolve([]) : plane.listLabels(planeProjectId),
-      ])
+  const isDryRunNoProject = ctx.dryRun && planeProjectId === "dry-run-project-id";
+  const [members, planeStates, planeLabels] = isDryRunNoProject
+    ? [[], [], []]
     : await Promise.all([
         plane.listProjectMembers(planeProjectId),
         plane.listStates(planeProjectId),
@@ -61,6 +56,10 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
   const stateByGroup = new Map(planeStates.map((s) => [s.group, s.id])); // first hit per group
   const labelLookup = new Map(planeLabels.map((l) => [l.name, l.id]));
 
+  // Pull only the custom/built-in fields this project actually maps.
+  const projectFieldIds = customFieldIds(ctx.config.mappings, ctx.jiraProject);
+  const issueFields = Array.from(new Set([...BASE_ISSUE_FIELDS, ...projectFieldIds]));
+
   let migrated = 0;
   let skipped = 0;
   let failed = 0;
@@ -70,7 +69,7 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
   while (true) {
     const page = await jira.searchIssues({
       jql: `project = ${ctx.jiraProject} ORDER BY created ASC`,
-      fields: ISSUE_FIELDS,
+      fields: issueFields,
       pageSize: ctx.batch,
       nextPageToken,
     });
@@ -97,6 +96,8 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
               priority: payload.priority,
               assignees: payload.assignees,
               labels: payload.labels,
+              start_date: payload.start_date,
+              target_date: payload.target_date,
               description_preview: (payload.description_html ?? "").slice(0, 120),
             })}`,
           );
@@ -144,11 +145,22 @@ function done(migrated: number, skipped: number, failed: number): MigrationResul
   return { ok: failed === 0, migrated, skipped, failed };
 }
 
+interface CreatePayload {
+  name: string;
+  description_html: string;
+  state?: string;
+  priority: string;
+  assignees: string[];
+  labels: string[];
+  start_date?: string | null;
+  target_date?: string | null;
+}
+
 /**
  * Build the Plane createWorkItem payload for one Jira issue. All field
- * resolution (state, priority, assignee, labels, custom-field-in-description)
- * happens here. Unresolved state falls back to the project's first
- * "unstarted" state; unresolved labels are skipped (not auto-created mid-run).
+ * resolution (state, priority, assignee, labels, custom fields) happens here.
+ * Unknown state falls back to the project's first "unstarted" state;
+ * unresolved labels are skipped (not auto-created mid-run).
  */
 function buildPayload(
   issue: JiraIssue,
@@ -158,28 +170,20 @@ function buildPayload(
   stateLookup: Map<string, string>,
   stateByGroup: Map<string, string>,
   labelLookup: Map<string, string>,
-): {
-  name: string;
-  description_html: string;
-  state?: string;
-  priority: string;
-  assignees: string[];
-  labels: string[];
-} {
+): CreatePayload {
   const mappings = ctx.config.mappings;
+  const project = ctx.jiraProject;
 
-  // Status: per-project mapping in mappings.status[<PROJECT>] maps to Plane state NAME.
+  // Status: per-project jira status name → plane state name.
   const statusName = issue.fields.status?.name ?? "";
-  const projectStatusMap = (mappings.status as unknown as Record<string, Record<string, string>>)[ctx.jiraProject] ?? {};
-  const planeStateName = projectStatusMap[statusName];
+  const planeStateName = mapJiraStatusToPlaneState(statusName, mappings, project);
   let stateId = planeStateName ? stateLookup.get(planeStateName) : undefined;
-
   if (!stateId) {
-    // Fallback: map via state group from the (legacy) flat status mapping or default to unstarted.
-    const fallbackGroup = mapJiraStatusToPlaneState(statusName, mappings);
-    stateId = stateByGroup.get(fallbackGroup) ?? undefined;
+    stateId = stateByGroup.get("unstarted");
     if (planeStateName) {
-      logger.warn(`state name '${planeStateName}' not on Plane project — fell back to group '${fallbackGroup}'`);
+      logger.warn(`state '${planeStateName}' missing on Plane project — fell back to 'unstarted' for ${issue.key}`);
+    } else if (statusName) {
+      logger.warn(`no mapping for jira status '${statusName}' (project ${project}) — fell back to 'unstarted' for ${issue.key}`);
     }
   }
 
@@ -202,6 +206,7 @@ function buildPayload(
         createdDate,
       },
       mappings,
+      project,
       projectCfg.properties,
     ),
   );
@@ -213,6 +218,8 @@ function buildPayload(
     else logger.warn(`label '${name}' not pre-seeded on Plane project — skipping for ${issue.key}`);
   }
 
+  const builtins = collectBuiltinDates(issue, mappings, project);
+
   return {
     name: issue.fields.summary,
     description_html,
@@ -220,7 +227,40 @@ function buildPayload(
     priority,
     assignees: assigneeRes.planeUserId ? [assigneeRes.planeUserId] : [],
     labels: labelIds,
+    start_date: builtins.start_date ?? null,
+    target_date: builtins.target_date ?? null,
   };
+}
+
+/**
+ * Read every Jira field whose mapping action is `builtin:<plane_field>` and
+ * collect them into the Plane work-item payload shape. Values are normalised to
+ * YYYY-MM-DD; null/empty values are ignored so Plane defaults take over.
+ */
+function collectBuiltinDates(
+  issue: JiraIssue,
+  mappings: import("../lib/config").MappingsConfig,
+  project: string,
+): Partial<Record<BuiltinField, string | null>> {
+  const out: Partial<Record<BuiltinField, string | null>> = {};
+  const projectMap = mappings.custom_fields[project] ?? {};
+  for (const fieldId of Object.keys(projectMap)) {
+    const action = customFieldAction(fieldId, mappings, project);
+    if (action.kind !== "builtin") continue;
+    const raw = issue.fields[fieldId];
+    const iso = normaliseDate(raw);
+    if (iso) out[action.field] = iso;
+  }
+  return out;
+}
+
+function normaliseDate(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (typeof v !== "string") return null;
+  // Accept "YYYY-MM-DD" directly; otherwise slice from a full ISO string.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return v.slice(0, 10);
+  return null;
 }
 
 /**
