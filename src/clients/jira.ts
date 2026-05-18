@@ -47,6 +47,19 @@ interface JiraSearchResponse {
   nextPageToken?: string;
 }
 
+export interface JiraAttachment {
+  id: string;
+  filename: string;
+  author?: JiraUser;
+  /** ISO timestamp. */
+  created: string;
+  /** Bytes. */
+  size: number;
+  mimeType: string;
+  /** Authenticated download URL (Jira REST). May 302 to a presigned S3 URL. */
+  content: string;
+}
+
 export interface JiraComment {
   id: string;
   author: JiraUser | null;
@@ -137,8 +150,34 @@ export class JiraClient {
     return out;
   }
 
-  async listAttachments(_issueIdOrKey: string): Promise<unknown[]> {
-    throw new Error("JiraClient.listAttachments: not implemented");
+  /**
+   * Jira does not expose a standalone /attachment list endpoint — attachments
+   * are returned as a field on the issue itself. We read it back via getIssue.
+   */
+  async listAttachments(issueIdOrKey: string): Promise<JiraAttachment[]> {
+    const issue = await this.getIssue(issueIdOrKey, ["attachment"]);
+    return ((issue.fields as { attachment?: JiraAttachment[] }).attachment ?? []) as JiraAttachment[];
+  }
+
+  /**
+   * Stream the binary contents of a Jira attachment. The `content` URL on the
+   * attachment metadata is auth-required and Jira may 302-redirect to a signed
+   * S3 URL; we follow redirects with credentials stripped on the second hop
+   * (standard fetch behaviour).
+   */
+  async downloadAttachment(contentUrl: string): Promise<{ blob: Blob; mimeType: string }> {
+    return withRetry(async () => {
+      const res = await fetch(contentUrl, {
+        headers: { Authorization: this.auth, Accept: "*/*" },
+        redirect: "follow",
+      });
+      if (!res.ok) {
+        throw new Error(`Jira attachment ${res.status} ${contentUrl}: ${(await res.text()).slice(0, 200)}`);
+      }
+      const blob = await res.blob();
+      const mimeType = res.headers.get("content-type") ?? "application/octet-stream";
+      return { blob, mimeType };
+    });
   }
 
   async listSprints(_boardId: number): Promise<unknown[]> {

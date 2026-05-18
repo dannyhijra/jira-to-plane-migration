@@ -9,6 +9,7 @@ import { migrateSprints } from "./sprints";
 import { migrateEpics } from "./epics";
 import { migrateAttachments } from "./attachments";
 import { migrateLinks } from "./links";
+import { migrateModules } from "./modules";
 
 export async function runMigration(ctx: MigrationContext): Promise<MigrationResult> {
   const jira = new JiraClient(ctx.config);
@@ -34,6 +35,7 @@ export async function runMigration(ctx: MigrationContext): Promise<MigrationResu
   if (entities.includes("sprints")) results.push(await migrateSprints({ ctx, jira, plane, planeProjectId }));
   if (entities.includes("epics")) results.push(await migrateEpics({ ctx, jira, plane, planeProjectId }));
   if (entities.includes("attachments")) results.push(await migrateAttachments({ ctx, jira, plane, planeProjectId }));
+  if (entities.includes("modules")) results.push(await migrateModules({ ctx, jira, plane, planeProjectId }));
   if (entities.includes("links")) results.push(await migrateLinks({ ctx, jira, plane, planeProjectId }));
 
   const total = results.reduce(

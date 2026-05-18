@@ -3,7 +3,15 @@ import { parse as parseYaml } from "yaml";
 
 export interface Config {
   jira: { baseUrl: string; email: string; apiToken: string };
-  plane: { baseUrl: string; apiKey: string; workspaceSlug: string };
+  plane: {
+    baseUrl: string;
+    apiKey: string;
+    workspaceSlug: string;
+    /** Optional: full `Cookie:` header from a browser session. Required only
+     * for attachment uploads via the cookie-gated `/api/assets/v2/` endpoint. */
+    cookieHeader?: string;
+    csrfToken?: string;
+  };
   projects: Record<string, ProjectConfig>;
   users: UsersConfig;
   mappings: MappingsConfig;
@@ -110,6 +118,8 @@ export async function loadConfig(): Promise<Config> {
       baseUrl: requireEnv("PLANE_BASE_URL"),
       apiKey: requireEnv("PLANE_API_KEY"),
       workspaceSlug: requireEnv("PLANE_WORKSPACE_SLUG"),
+      cookieHeader: process.env.PLANE_COOKIE_HEADER || undefined,
+      csrfToken: process.env.PLANE_CSRF_TOKEN || undefined,
     },
     projects: projectsFile.projects,
     users: usersFile,
