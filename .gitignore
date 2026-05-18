@@ -3,6 +3,7 @@ node_modules/
 .env
 .env.local
 state/manifest.jsonl
+state/manifest.jsonl.bak-*
 state/failures.jsonl
 *.log
 .DS_Store
