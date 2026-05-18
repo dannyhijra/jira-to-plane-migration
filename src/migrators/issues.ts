@@ -251,6 +251,12 @@ function collectBuiltinDates(
     const iso = normaliseDate(raw);
     if (iso) out[action.field] = iso;
   }
+  // Plane rejects start_date > target_date. Some Jira projects use those fields
+  // with inverted semantics (e.g. ARH intake form: duedate=submission date,
+  // start_date=desired completion). Swap when inverted so both dates survive.
+  if (out.start_date && out.target_date && out.start_date > out.target_date) {
+    [out.start_date, out.target_date] = [out.target_date, out.start_date];
+  }
   return out;
 }
 
