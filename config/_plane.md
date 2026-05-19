@@ -2,7 +2,7 @@
 
 Workspace-wide Plane state captured once and referenced by every per-project discovery doc. Refresh when membership or workspace structure changes, not per Jira project.
 
-Last captured: 2026-05-18 by Claude Code (refreshed during HDR discovery — ARH project added since prior capture)
+Last captured: 2026-05-19 by Claude Code (refreshed during HIJ discovery — HLRS project added since prior capture)
 Workspace slug: `hijra`
 Base URL: `https://plane.hq.hijra.dev`
 
@@ -20,6 +20,8 @@ Base URL: `https://plane.hq.hijra.dev`
 | LDRH       | Legal Review Request | 73de3f92-3f2d-4355-a6e0-bc84ed313e5e   |
 | LRP        | Legal Request PKS    | ec9b3331-893a-468b-89b2-f8801c97a5af   |
 | ARH        | Anyur Request        | ef603ac8-09d4-413f-ab6e-b9aea65af65a   |
+| HDR        | Document Request     | a9f5d28f-72e0-4e3c-af57-d8357c22c7cf   |
+| HLRS       | Legal Review SP3     | 6328c439-cf0b-4e44-b779-73c82201fa29   |
 
 Add a row here whenever a new Plane project is created. Per-project discovery docs should note "new — to be created" if the target Jira key has no Plane equivalent yet.
 
@@ -65,3 +67,4 @@ Plane built-in: `urgent | high | medium | low | none`. Use these as targets in `
 - **Created_by + comment author**: always the API key owner (`dcahyono@hijra.id`) by Plane API design. Original authorship lives in the migration prefix. See `.claude/skills/migration-user-strategy/SKILL.md`.
 - **Assignee resolution**: Jira email → look up in the table above. Miss = empty assignees + migration prefix.
 - **Label seed**: every new Plane project is created label-empty. Per-project discovery doc decides which Jira labels become Plane labels.
+- **Custom properties — Community Edition limitation**: This Plane instance is the open-source Community Edition. Work Item Types (the gateway to real custom properties on work items) is a **Pro-tier feature stripped from the Community build** — the `/features/` API endpoint returns 404 and the per-project toggle does not appear in the UI. As a result, any custom field configured as `property:<name>` in `config/mappings.yaml` is **rendered into a structured description footer** (`<!-- migrated-custom-fields -->`) rather than created as a real Plane property. The data is preserved and human-readable; promotion to real properties would require a Pro license + a one-off footer-to-property migrator. See `src/mappers/description.ts` (the renderCustomFieldFooter function) for the exact format.

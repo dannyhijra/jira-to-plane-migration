@@ -168,6 +168,8 @@ Workspace-wide Plane state (members, existing projects, default states, access n
 
 ## Decisions needed
 
+> **Note (amended 2026-05-19):** `property:<name>` actions for custom fields below render into a description footer (`<!-- migrated-custom-fields -->`), not real Plane work-item properties — this Plane instance is Community Edition where Work Item Types is gated behind Pro. Data is preserved; see [`config/_plane.md`](../config/_plane.md) and `src/mappers/description.ts` for the renderer.
+
 - [x] **Status mapping**: keep Jira-specific states verbatim (`Final`, `Finalisasi Draft`, `Followup User`, `Review Tim Legal`); seed Plane defaults (Backlog/Todo/In Progress/Done/Cancelled) alongside for future-proofing. 1:1 mapping by name. `Final` stays `Final` in Plane (not collapsed into `Done`).
 - [x] **Priority mapping**: `Highest → urgent`, `High → high`, `Medium → medium`. (No Low/Lowest in project.)
 - [x] **Custom fields**:
