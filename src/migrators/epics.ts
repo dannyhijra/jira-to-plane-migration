@@ -156,8 +156,10 @@ export async function migrateEpics(args: MigratorArgs): Promise<MigrationResult>
       nextPageToken,
     });
     for (const issue of page.issues) {
-      const parent = issue.fields.parent as { key?: string } | null | undefined;
-      const parentKey = parent?.key;
+      // Jira's /search/jql omits `fields` entirely when an issue has none of the
+      // requested fields — i.e. the parentless issues (epics + top-level tasks).
+      const fields = issue.fields as { parent?: { key?: string } } | undefined;
+      const parentKey = fields?.parent?.key;
       if (!parentKey) continue;
       const moduleId = moduleByEpic.get(parentKey);
       if (!moduleId) continue; // parent epic not in scope (e.g. limited pilot)
