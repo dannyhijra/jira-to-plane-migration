@@ -5,6 +5,8 @@ node_modules/
 state/manifest.jsonl
 state/manifest.jsonl.bak-*
 state/failures.jsonl
+state/.plane-browser/
+state/plane-session.json
 *.log
 .DS_Store
 
