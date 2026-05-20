@@ -48,6 +48,10 @@ export function currentSession(filePath: string = SESSION_FILE): PlaneSession {
   };
 }
 
+// Single-flight guard. Module-global on purpose: one in-flight refresh per
+// process means concurrent upload failures trigger at most one browser launch.
+// Tests must fully await each refreshSession() call so this settles back to
+// null between cases.
 let inFlight: Promise<PlaneSession> | null = null;
 
 export type RefreshRunner = () => Promise<void>;

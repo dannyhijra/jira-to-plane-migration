@@ -63,13 +63,19 @@ test("refreshSession runs the refresher once for concurrent callers", async () =
     calls++;
     return new Promise<void>((r) => setTimeout(r, 20));
   };
-  const file = join(tmpdir(), "psess-single.json");
+  // Real file so the assertion proves both callers received the reloaded
+  // session from the single run — not just two equal `undefined`s.
+  const file = tmpFile(
+    "plane-session.json",
+    JSON.stringify({ cookieHeader: "session=SINGLE", csrfToken: "CSRF_SINGLE" }),
+  );
   const [a, b] = await Promise.all([
     refreshSession(runner, file),
     refreshSession(runner, file),
   ]);
   expect(calls).toBe(1);
-  expect(a.cookieHeader).toBe(b.cookieHeader);
+  expect(a.cookieHeader).toBe("session=SINGLE");
+  expect(b.cookieHeader).toBe("session=SINGLE");
 });
 
 test("refreshSession can run again after the previous run settles", async () => {
@@ -78,7 +84,9 @@ test("refreshSession can run again after the previous run settles", async () => 
     calls++;
     return Promise.resolve();
   };
-  const file = join(tmpdir(), "psess-seq.json");
+  const dir = mkdtempSync(join(tmpdir(), "psess-"));
+  tmpDirs.push(dir);
+  const file = join(dir, "missing.json"); // nonexistent within an isolated dir
   await refreshSession(runner, file);
   await refreshSession(runner, file);
   expect(calls).toBe(2);
