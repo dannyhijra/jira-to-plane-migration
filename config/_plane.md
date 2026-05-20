@@ -9,7 +9,8 @@ Base URL: `https://plane.hq.hijra.dev`
 ## Access notes
 
 - Plane sits behind Cloudflare Access (HTTP 302 → `hijrabank.cloudflareaccess.com`). VPN is required for the Plane MCP and for the migrator runtime to reach the API. No service-token bypass currently configured.
-- MCP endpoint coverage: `get_project_members`, `list_projects`, `list_states`, `list_labels` work. `get_me`, `get_workspace_members`, and `get_workspace_features` / `get_project_features` return HTTP 404 against this Plane version. Workspace members are read from `get_project_members` on any existing project as a proxy.
+- MCP endpoint coverage: `get_project_members`, `list_projects`, `list_states`, `list_labels`, `list_modules`, `list_cycles`, `list_module_work_items` work. `get_me`, `get_workspace_members`, `get_workspace_features` / `get_project_features` return HTTP 404 against this Plane version. Workspace members are read from `get_project_members` on any existing project as a proxy.
+- **Listing/retrieving work items: MCP 404s, REST works.** `list_work_items`, `search_work_items`, and `retrieve_work_item_by_identifier` all return HTTP 404 on this CE build (the MCP hits a work-items path CE lacks). The canonical REST endpoint `GET /api/v1/workspaces/{slug}/projects/{id}/issues/?per_page=100` with header `X-API-Key` **works** (paginated; add the Cloudflare `Cookie` header if behind Access). Use this to enumerate/count a project's live items. Reference impl: `scripts/list-ii-plane.ts`. (Note: Plane `sequence_id` is a monotonic high-water mark — it does NOT equal the live item count after deletes.)
 
 ## Existing projects
 
