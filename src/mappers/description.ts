@@ -89,7 +89,7 @@ function formatValue(v: unknown): string {
   if (typeof v === "object" && v !== null) {
     const obj = v as Record<string, unknown>;
     if (obj.type === "doc" && Array.isArray(obj.content)) {
-      return adfToMarkdown(obj as Parameters<typeof adfToMarkdown>[0]);
+      return adfToMarkdown(obj as unknown as Parameters<typeof adfToMarkdown>[0]);
     }
     return String(obj.value ?? obj.name ?? JSON.stringify(obj));
   }
