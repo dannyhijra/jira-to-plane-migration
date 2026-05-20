@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import { logger } from "./logger";
 
 export interface PlaneSession {
@@ -45,4 +46,46 @@ export function currentSession(filePath: string = SESSION_FILE): PlaneSession {
     cookieHeader: process.env.PLANE_COOKIE_HEADER || undefined,
     csrfToken: process.env.PLANE_CSRF_TOKEN || undefined,
   };
+}
+
+let inFlight: Promise<PlaneSession> | null = null;
+
+export type RefreshRunner = () => Promise<void>;
+
+/** Default runner: spawn the Playwright refresher as a subprocess so this
+ *  module never imports Playwright. Inherits stdio so its logs surface. */
+const defaultRunner: RefreshRunner = () =>
+  new Promise<void>((resolve, reject) => {
+    const child = spawn("bun", ["scripts/refresh-plane-session.ts"], {
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else
+        reject(
+          new Error(
+            `refresh-plane-session exited ${code} — Google session may be expired; ` +
+              `run: bun scripts/refresh-plane-session.ts --login`,
+          ),
+        );
+    });
+  });
+
+/**
+ * Re-mint the Plane session by running the refresher, then reload credentials.
+ * Single-flight: concurrent callers share one run so we never launch two
+ * browsers. `runner` and `filePath` are injectable for tests.
+ */
+export function refreshSession(
+  runner: RefreshRunner = defaultRunner,
+  filePath: string = SESSION_FILE,
+): Promise<PlaneSession> {
+  if (inFlight) return inFlight;
+  inFlight = runner()
+    .then(() => currentSession(filePath))
+    .finally(() => {
+      inFlight = null;
+    });
+  return inFlight;
 }

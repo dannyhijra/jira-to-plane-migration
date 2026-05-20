@@ -2,7 +2,7 @@ import { test, expect, afterEach } from "bun:test";
 import { writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { currentSession } from "./plane-session";
+import { currentSession, refreshSession } from "./plane-session";
 
 const origCookie = process.env.PLANE_COOKIE_HEADER;
 const origCsrf = process.env.PLANE_CSRF_TOKEN;
@@ -55,4 +55,31 @@ test("currentSession falls back to env when the file is present but malformed", 
   const s = currentSession(file);
   expect(s.cookieHeader).toBe("session=ENV");
   expect(s.csrfToken).toBe("CSRF_ENV");
+});
+
+test("refreshSession runs the refresher once for concurrent callers", async () => {
+  let calls = 0;
+  const runner = () => {
+    calls++;
+    return new Promise<void>((r) => setTimeout(r, 20));
+  };
+  const file = join(tmpdir(), "psess-single.json");
+  const [a, b] = await Promise.all([
+    refreshSession(runner, file),
+    refreshSession(runner, file),
+  ]);
+  expect(calls).toBe(1);
+  expect(a.cookieHeader).toBe(b.cookieHeader);
+});
+
+test("refreshSession can run again after the previous run settles", async () => {
+  let calls = 0;
+  const runner = () => {
+    calls++;
+    return Promise.resolve();
+  };
+  const file = join(tmpdir(), "psess-seq.json");
+  await refreshSession(runner, file);
+  await refreshSession(runner, file);
+  expect(calls).toBe(2);
 });
