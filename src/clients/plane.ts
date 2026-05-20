@@ -1,5 +1,7 @@
 import type { Config } from "../lib/config";
 import { withRetry } from "../lib/retry";
+import { logger } from "../lib/logger";
+import { currentSession, refreshSession, withSessionRetry } from "../lib/plane-session";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -73,15 +75,10 @@ export class PlaneClient {
   private readonly baseUrl: string;
   private readonly workspaceSlug: string;
   private readonly apiKey: string;
-  private readonly cookieHeader: string | undefined;
-  private readonly csrfToken: string | undefined;
-
   constructor(config: Config) {
     this.baseUrl = config.plane.baseUrl.replace(/\/$/, "");
     this.workspaceSlug = config.plane.workspaceSlug;
     this.apiKey = config.plane.apiKey;
-    this.cookieHeader = config.plane.cookieHeader;
-    this.csrfToken = config.plane.csrfToken;
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -293,22 +290,22 @@ export class PlaneClient {
    * When `cookieHeader` is empty, throws `PlaneAttachmentStorageError` so the
    * caller falls back to placeholder mode.
    */
-  async uploadAttachment(
+  private async attemptUpload(
     projectId: string,
     workItemId: string,
     blob: Blob,
     filename: string,
     mimeType: string,
   ): Promise<{ id: string }> {
-    if (!this.cookieHeader) {
+    const { cookieHeader: cookie, csrfToken: csrf } = currentSession();
+    if (!cookie) {
       throw new PlaneAttachmentStorageError(
-        "PLANE_COOKIE_HEADER not configured — cannot upload via assets/v2 endpoint",
+        "no Plane session cookie — run: bun scripts/refresh-plane-session.ts --login (or set PLANE_COOKIE_HEADER)",
+        { authFailure: true },
       );
     }
 
     const size = blob.size;
-    const cookie = this.cookieHeader;
-    const csrf = this.csrfToken;
 
     // Step 1: register the asset, get signed S3 upload params.
     const step1Url = `${this.baseUrl}/api/assets/v2/workspaces/${this.workspaceSlug}/projects/${projectId}/issues/${workItemId}/attachments/`;
@@ -334,7 +331,8 @@ export class PlaneClient {
     // remaining attachment with the same failure.
     if (step1.status === 401 || step1.status === 403) {
       throw new PlaneAttachmentStorageError(
-        `assets/v2 step 1 ${step1.status} (auth/Cloudflare): refresh PLANE_COOKIE_HEADER from a fresh browser session and re-run`,
+        `assets/v2 step 1 ${step1.status} (auth/session expired)`,
+        { authFailure: true },
       );
     }
     if (step1.status >= 500) {
@@ -415,6 +413,36 @@ export class PlaneClient {
     }
 
     return { id: reg.asset_id };
+  }
+
+  /**
+   * Upload an attachment to a work item. On an auth/session rejection, refreshes
+   * the Plane session once (via the Playwright refresher) and retries once. A
+   * refresh failure or a second rejection surfaces as a PlaneAttachmentStorageError
+   * so the migrator's placeholder fallback handles it — the run never crashes.
+   */
+  async uploadAttachment(
+    projectId: string,
+    workItemId: string,
+    blob: Blob,
+    filename: string,
+    mimeType: string,
+  ): Promise<{ id: string }> {
+    return withSessionRetry(
+      () => this.attemptUpload(projectId, workItemId, blob, filename, mimeType),
+      (err) => err instanceof PlaneAttachmentStorageError && err.authFailure,
+      async () => {
+        logger.warn("Plane session rejected — refreshing via Playwright and retrying once");
+        try {
+          await refreshSession();
+        } catch (err) {
+          throw new PlaneAttachmentStorageError(
+            `session refresh failed: ${(err as Error).message}`,
+            { backendDown: true },
+          );
+        }
+      },
+    );
   }
 }
 
@@ -503,9 +531,14 @@ export class PlaneAttachmentStorageError extends Error {
    *  could still succeed. The migrator uses this to decide whether to trip
    *  into placeholder-only mode for the rest of the run. */
   readonly backendDown: boolean;
-  constructor(message: string, opts: { backendDown: boolean } = { backendDown: true }) {
+  /** True when the failure is an auth/session rejection (401/403 or a missing
+   *  cookie) that re-minting the session might fix. uploadAttachment uses this
+   *  to decide whether to refresh-and-retry. */
+  readonly authFailure: boolean;
+  constructor(message: string, opts: { backendDown?: boolean; authFailure?: boolean } = {}) {
     super(message);
     this.name = "PlaneAttachmentStorageError";
-    this.backendDown = opts.backendDown;
+    this.backendDown = opts.backendDown ?? true;
+    this.authFailure = opts.authFailure ?? false;
   }
 }
