@@ -65,10 +65,17 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
   let failed = 0;
   let processed = 0;
 
+  // Projects that turn Jira epics into Plane modules (the `epics` entity) must
+  // NOT also import epics as work items — they become module groupings instead.
+  // Gated on config so Task-only projects (no `epics` entity) are unaffected.
+  const excludeEpics = projectCfg.migrate_entities?.includes("epics") ?? false;
+  const issuesJql = `project = ${ctx.jiraProject}${excludeEpics ? " AND issuetype != Epic" : ""} ORDER BY created ASC`;
+  if (excludeEpics) logger.info(`migrateIssues: excluding issuetype=Epic (handled by the epics→modules migrator)`);
+
   let nextPageToken: string | undefined;
   while (true) {
     const page = await jira.searchIssues({
-      jql: `project = ${ctx.jiraProject} ORDER BY created ASC`,
+      jql: issuesJql,
       fields: issueFields,
       pageSize: ctx.batch,
       nextPageToken,
