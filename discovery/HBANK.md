@@ -120,6 +120,17 @@ Established repo pattern (`src/migrators/modules.ts` + `epics.ts`) is **Epic →
 
 100 sub-tasks. Parent issue-types: Story (92), Task (5), Dev Bug (3). → Plane **sub-issues via `parent_id`**; parents must be migrated before children (ordering constraint in the issues migrator).
 
+### Description / comment body quirks (ADF nodes)
+
+Unlike the earlier business-form projects (flat fields), HBANK descriptions + comments are real ADF with nodes that don't render natively in Plane. Confirmed by sampling recent issues:
+
+- **Inline image embeds** (`media` / `mediaSingle`) — pasted screenshots embedded *in the body*, e.g. HBANK-988: `![](blob:https://media.staging.atl-paas.net/?type=file&id=52d1d62a-…)`. The `blob:` / `media.atl-paas.net` URL is dead outside Jira. These point at the same attachment store as the file-tab attachments — they are **not** a separate entity to migrate; the attachments pass already uploads the files. The embed URL in the body will simply **degrade to a broken/empty image** unless rewritten. **Accept degradation** (no new rewrite logic) — the file still arrives via the attachments pass, just not inline.
+- **Smartlinks / external URLs** (`inlineCard` / Google Chat, GitHub, etc.) — e.g. HBANK-989/990 link to a Google Chat room. **Degrade to plain clickable links** (fine).
+- **@mention nodes** (`mention`) — reference accountIds; **flatten to plain `@DisplayName` text**, mentioned user not linked (same as DEPLOY precedent).
+- **Standard rich text** — headings, bold, bullet/numbered lists, inline code, smart quotes (HBANK-987) — **convert cleanly to markdown**, no loss.
+
+Decision: **accept ADF flattening** — same call as DEPLOY. The only visible loss is inline images becoming broken embeds (file still preserved via attachments) and @mentions becoming non-clickable names.
+
 ### Users
 
 **Distinct creators (15):**
@@ -230,3 +241,10 @@ Workspace-wide Plane state lives in [`config/_plane.md`](../config/_plane.md) (r
   - `Muhammad Izzuddin` — accountId `712020:291d4f5d-707d-4352-9e32-efb63e7709d2` — assigned 8
 
   Stage 1 invitation list is therefore the **16 emailed users** above only.
+
+### Net entity plan for `/migrate-configure` → migrators
+
+issues (967, incl. `parent_id` for 100 sub-tasks; `type:`/`squad:`/`eng:` labels; `start_date` 57, `target_date` 58; QA-assignee footer 15) · comments (684 across 274 issues, author prefix) · attachments (819 across 205 issues; watch Cloudflare cookie) · epics→modules (48 modules + 48 `type:epic` work items, 700 children added to modules) · links (Relates 198→`relates`, Blocks 12→`blocked_by`/`blocking`; **drop** Polaris 8 + migration_parent 2) · **no cycles** (no sprints). ADF bodies flattened (inline images degrade, @mentions non-clickable).
+
+---
+*Decisions locked. Next: `/migrate-configure HBANK`.*
