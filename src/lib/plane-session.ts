@@ -93,3 +93,24 @@ export function refreshSession(
     });
   return inFlight;
 }
+
+/**
+ * Run an upload attempt; if it fails an auth/session check, refresh the session
+ * once and retry exactly once. Any non-auth error propagates immediately, and a
+ * second auth failure propagates too (no infinite loop). Pure orchestration (no
+ * I/O) so it is unit-testable. `refresh` is responsible for translating its own
+ * failures into the error type the caller expects.
+ */
+export async function withSessionRetry<T>(
+  attempt: () => Promise<T>,
+  isAuthFailure: (err: unknown) => boolean,
+  refresh: () => Promise<void>,
+): Promise<T> {
+  try {
+    return await attempt();
+  } catch (err) {
+    if (!isAuthFailure(err)) throw err;
+    await refresh();
+    return await attempt();
+  }
+}

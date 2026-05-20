@@ -2,7 +2,7 @@ import { test, expect, afterEach } from "bun:test";
 import { writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { currentSession, refreshSession } from "./plane-session";
+import { currentSession, refreshSession, withSessionRetry } from "./plane-session";
 
 const origCookie = process.env.PLANE_COOKIE_HEADER;
 const origCsrf = process.env.PLANE_CSRF_TOKEN;
@@ -90,4 +90,79 @@ test("refreshSession can run again after the previous run settles", async () => 
   await refreshSession(runner, file);
   await refreshSession(runner, file);
   expect(calls).toBe(2);
+});
+
+const isAuth = (e: unknown) => e instanceof Error && e.message === "AUTH";
+
+test("withSessionRetry returns first result without refreshing on success", async () => {
+  let attempts = 0;
+  let refreshes = 0;
+  const out = await withSessionRetry(
+    async () => {
+      attempts++;
+      return "ok";
+    },
+    isAuth,
+    async () => {
+      refreshes++;
+    },
+  );
+  expect(out).toBe("ok");
+  expect(attempts).toBe(1);
+  expect(refreshes).toBe(0);
+});
+
+test("withSessionRetry refreshes once and retries on auth failure", async () => {
+  let attempts = 0;
+  let refreshes = 0;
+  const out = await withSessionRetry(
+    async () => {
+      attempts++;
+      if (attempts === 1) throw new Error("AUTH");
+      return "ok";
+    },
+    isAuth,
+    async () => {
+      refreshes++;
+    },
+  );
+  expect(out).toBe("ok");
+  expect(attempts).toBe(2);
+  expect(refreshes).toBe(1);
+});
+
+test("withSessionRetry propagates a second auth failure after one retry", async () => {
+  let attempts = 0;
+  let refreshes = 0;
+  const run = withSessionRetry(
+    async () => {
+      attempts++;
+      throw new Error("AUTH");
+    },
+    isAuth,
+    async () => {
+      refreshes++;
+    },
+  );
+  await expect(run).rejects.toThrow("AUTH");
+  expect(attempts).toBe(2);
+  expect(refreshes).toBe(1);
+});
+
+test("withSessionRetry does not refresh on non-auth errors", async () => {
+  let attempts = 0;
+  let refreshes = 0;
+  const run = withSessionRetry(
+    async () => {
+      attempts++;
+      throw new Error("OTHER");
+    },
+    isAuth,
+    async () => {
+      refreshes++;
+    },
+  );
+  await expect(run).rejects.toThrow("OTHER");
+  expect(attempts).toBe(1);
+  expect(refreshes).toBe(0);
 });
