@@ -276,6 +276,71 @@ export class PlaneClient {
   }
 
   /**
+   * Create a relation between work items on this self-hosted Plane.
+   *
+   * Like attachments, relations are NOT in the public X-API-Key v1 API — the
+   * `issue-relation` endpoint exists only on the internal app API
+   * (`/api/workspaces/...`, no `/v1`), which is session-cookie gated and sits
+   * behind Cloudflare Bot Management. So this shells out to system `curl` with
+   * the browser cookie + Cloudflare-passing headers, same as uploadAttachment.
+   *
+   * `POST .../issues/{workItemId}/issue-relation/` body `{relation_type, issues}`.
+   * Plane stores the relation bidirectionally (creating `blocking` A→B also sets
+   * `blocked_by` on B; `relates_to`/`duplicate` are symmetric), so each Jira
+   * link should be created exactly once.
+   *
+   * Throws PlaneRelationError when the cookie is missing or the session/Cloudflare
+   * challenge rejects the request, so the caller can fail fast rather than burn
+   * through every remaining link with the same error.
+   */
+  async createRelation(
+    projectId: string,
+    workItemId: string,
+    relationType: string,
+    issues: string[],
+  ): Promise<{ id: string }> {
+    if (!this.cookieHeader) {
+      throw new PlaneRelationError(
+        "PLANE_COOKIE_HEADER not configured — relations use the cookie-gated internal API",
+      );
+    }
+    const url = `${this.baseUrl}/api/workspaces/${this.workspaceSlug}/projects/${projectId}/issues/${workItemId}/issue-relation/`;
+    const res = await curl({
+      method: "POST",
+      url,
+      headers: [
+        "accept: application/json, text/plain, */*",
+        "content-type: application/json",
+        ...(this.csrfToken ? [`x-csrftoken: ${this.csrfToken}`] : []),
+        `origin: ${this.baseUrl}`,
+        `referer: ${this.baseUrl}/${this.workspaceSlug}/projects/${projectId}/issues/`,
+        "user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+      ],
+      cookie: this.cookieHeader,
+      body: JSON.stringify({ relation_type: relationType, issues }),
+    });
+    if (res.status === 401 || res.status === 403) {
+      throw new PlaneRelationError(
+        `issue-relation ${res.status} (auth/Cloudflare): refresh PLANE_COOKIE_HEADER from a fresh browser session and re-run`,
+      );
+    }
+    if (!ok2xx(res.status)) {
+      throw new Error(`issue-relation ${res.status}: ${res.body.slice(0, 300)}`);
+    }
+    // Response is the created relation record(s). Best-effort id; fall back to a
+    // composite so the manifest entry is still meaningful for verification.
+    let id = `${relationType}:${issues[0]}`;
+    try {
+      const parsed = JSON.parse(res.body);
+      const first = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (first?.id) id = String(first.id);
+    } catch {
+      /* keep composite id */
+    }
+    return { id };
+  }
+
+  /**
    * Upload a file as an attachment on a Plane work item.
    *
    * On this self-hosted Plane the storage backend is wired only to the modern
@@ -497,6 +562,18 @@ async function curl(opts: CurlOpts): Promise<{ status: number; body: string }> {
  * transient network issue. The attachments migrator catches this specifically
  * to switch into placeholder-only mode rather than retrying indefinitely.
  */
+/**
+ * Raised when the cookie-gated `issue-relation` endpoint can't be reached —
+ * missing cookie or an expired session / Cloudflare challenge. The links
+ * migrator catches this to abort early instead of failing every remaining link.
+ */
+export class PlaneRelationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PlaneRelationError";
+  }
+}
+
 export class PlaneAttachmentStorageError extends Error {
   /** True when the failure indicates the backend itself is unreachable/down,
    *  vs a per-file issue like 413 (file too large) where the next attachment

@@ -68,6 +68,18 @@ export interface JiraComment {
   updated: string;
 }
 
+/**
+ * One entry in an issue's `issuelinks` field. Exactly one of `inwardIssue` /
+ * `outwardIssue` is populated per entry. The same link `id` appears on both
+ * linked issues — use it as the dedup key.
+ */
+export interface JiraIssueLink {
+  id: string;
+  type: { id: string; name: string; inward: string; outward: string };
+  inwardIssue?: { id: string; key: string };
+  outwardIssue?: { id: string; key: string };
+}
+
 interface JiraCommentsResponse {
   startAt: number;
   maxResults: number;
