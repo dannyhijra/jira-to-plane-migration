@@ -8,6 +8,9 @@ state/failures.jsonl
 *.log
 .DS_Store
 
+# Per-project worktrees created by scripts/local-scheduler/run-migration-isolated.sh
+.worktrees/
+
 # Filled-in config files contain sensitive mappings — only the .example files are committed
 config/projects.yaml
 config/users.yaml
