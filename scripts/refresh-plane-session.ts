@@ -38,10 +38,11 @@ try {
     console.error("Complete Google sign-in in the browser window — waiting up to 5 min…");
     await page.waitForURL(`${homeUrl}**`, { timeout: 300_000 });
   } else {
-    // Headless: if we landed on a sign-in / Google page, the saved Google
-    // session expired and we cannot recover without a human.
+    // Headless: if navigation left the Plane host (e.g. bounced to Google) or
+    // landed on a sign-in / auth path, the saved Google session expired and we
+    // cannot recover without a human. (Cookie check below is the final backstop.)
     const url = page.url();
-    if (/sign-in|accounts\.google\.com|\/login/.test(url)) {
+    if (!url.startsWith(baseUrl) || /sign-in|accounts\.google\.com|\/login|\/auth/.test(url)) {
       console.error(
         `not logged in (landed on ${url}) — run: bun scripts/refresh-plane-session.ts --login`,
       );
