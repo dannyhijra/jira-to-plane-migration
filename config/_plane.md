@@ -25,6 +25,7 @@ Base URL: `https://plane.hq.hijra.dev`
 | HLRS       | Legal Review SP3     | 6328c439-cf0b-4e44-b779-73c82201fa29   |
 | HIJ        | Appraisal Request    | e89c3f8b-5603-41af-9187-11638d1f65ce   |
 | DEPLOY     | Service Deployment (Production) | f0f31fe5-c701-410f-bf06-6518b538f3d3 |
+| IHH        | IT Hijra Helpdesk    | 0fbdc5d0-2d02-42a2-9f02-2830cbe190f6   |
 
 Add a row here whenever a new Plane project is created. Per-project discovery docs should note "new — to be created" if the target Jira key has no Plane equivalent yet.
 
