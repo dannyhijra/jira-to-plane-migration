@@ -2,13 +2,13 @@ import type { JiraClient, JiraIssue } from "../clients/jira";
 import type { PlaneClient } from "../clients/plane";
 import type { MigrationContext, MigrationResult } from "../state/types";
 import { logger } from "../lib/logger";
-import { append, hasMigrated } from "../state/manifest";
+import { append, hasMigrated, loadManifest } from "../state/manifest";
 import { mapJiraStatusToPlaneState } from "../mappers/status";
 import { mapJiraPriorityToPlanePriority } from "../mappers/priority";
-import { mapJiraLabels } from "../mappers/labels";
+import { mapJiraLabels, mapIssueTypeToLabel } from "../mappers/labels";
 import { buildPlaneMemberLookup, resolveJiraAssignee } from "../mappers/users";
 import { buildDescription } from "../mappers/description";
-import { customFieldAction, customFieldIds, type BuiltinField } from "../mappers/customFields";
+import { customFieldAction, customFieldIds, collectFieldLabels, type BuiltinField } from "../mappers/customFields";
 
 export interface MigratorArgs {
   ctx: MigrationContext;
@@ -64,13 +64,17 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
   let skipped = 0;
   let failed = 0;
   let processed = 0;
+  let limitHit = false;
 
-  // Projects that turn Jira epics into Plane modules (the `epics` entity) must
-  // NOT also import epics as work items — they become module groupings instead.
-  // Gated on config so Task-only projects (no `epics` entity) are unaffected.
-  const excludeEpics = projectCfg.migrate_entities?.includes("epics") ?? false;
+  // Projects that turn Jira epics into Plane modules (the `epics` entity) by
+  // default do NOT also import epics as work items — they become module groupings
+  // instead. `epics_as_work_items` overrides that: the epic is migrated as a work
+  // item AND seeds a module (HBANK), so its description + comments survive.
+  const excludeEpics =
+    (projectCfg.migrate_entities?.includes("epics") ?? false) && !projectCfg.epics_as_work_items;
   const issuesJql = `project = ${ctx.jiraProject}${excludeEpics ? " AND issuetype != Epic" : ""} ORDER BY created ASC`;
   if (excludeEpics) logger.info(`migrateIssues: excluding issuetype=Epic (handled by the epics→modules migrator)`);
+  else if (projectCfg.epics_as_work_items) logger.info(`migrateIssues: including epics as work items (epics_as_work_items=true)`);
 
   let nextPageToken: string | undefined;
   while (true) {
@@ -83,7 +87,8 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
 
     for (const issue of page.issues) {
       if (ctx.limit && processed >= ctx.limit) {
-        return done(migrated, skipped, failed);
+        limitHit = true;
+        break;
       }
       processed++;
 
@@ -140,11 +145,88 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
       }
     }
 
+    if (limitHit || !page.nextPageToken) break;
+    nextPageToken = page.nextPageToken;
+  }
+
+  // Sub-task post-pass: set Plane `parent` on sub-tasks now that their parents
+  // exist as work items. Resolves both ends' plane_id from the manifest.
+  if (projectCfg.link_subtasks) {
+    failed += await linkSubtaskParents(args, planeProjectId);
+  }
+
+  return done(migrated, skipped, failed);
+}
+
+/**
+ * Set the Plane `parent` of every Jira sub-task (issuetype.subtask) to its
+ * migrated parent work item. Runs after the main pass so both ends are in the
+ * manifest. Idempotent (PATCH re-sets the same parent). Epic→child grouping is
+ * handled separately by the epics→modules migrator; this only links sub-tasks.
+ * Returns the number of failed link attempts (folded into the run's failed count).
+ */
+async function linkSubtaskParents(args: MigratorArgs, planeProjectId: string): Promise<number> {
+  const { ctx, jira, plane } = args;
+
+  const manifest = await loadManifest();
+  const planeIdByKey = new Map<string, string>();
+  for (const e of manifest.values()) {
+    if (e.entity === "work_item" && e.project === ctx.jiraProject && e.status === "ok" && e.plane_id) {
+      planeIdByKey.set(e.jira_key, e.plane_id);
+    }
+  }
+
+  let linked = 0;
+  let failedLinks = 0;
+  let wouldLink = 0;
+  let nextPageToken: string | undefined;
+  while (true) {
+    const page = await jira.searchIssues({
+      jql: `project = ${ctx.jiraProject} ORDER BY created ASC`,
+      fields: ["issuetype", "parent"],
+      pageSize: ctx.batch,
+      nextPageToken,
+    });
+    for (const issue of page.issues) {
+      if (!issue.fields.issuetype?.subtask) continue;
+      const parentKey = issue.fields.parent?.key;
+      if (!parentKey) continue;
+
+      if (ctx.dryRun) {
+        logger.info(`[dry-run] would set parent ${issue.key} → ${parentKey}`);
+        wouldLink++;
+        continue;
+      }
+
+      const childId = planeIdByKey.get(issue.key);
+      const parentId = planeIdByKey.get(parentKey);
+      if (!childId || !parentId) {
+        logger.warn(
+          `subtask parent link skipped (${issue.key} → ${parentKey}): unresolved plane_id` +
+            `${!childId ? ` child ${issue.key}` : ""}${!parentId ? ` parent ${parentKey}` : ""}`,
+        );
+        continue;
+      }
+
+      try {
+        await plane.updateWorkItem(planeProjectId, childId, { parent: parentId });
+        logger.info(`linked subtask ${issue.key} → parent ${parentKey}`);
+        linked++;
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        logger.warn(`failed to set parent for ${issue.key}: ${error}`);
+        failedLinks++;
+      }
+    }
     if (!page.nextPageToken) break;
     nextPageToken = page.nextPageToken;
   }
 
-  return done(migrated, skipped, failed);
+  logger.info(
+    `linkSubtaskParents done: linked=${linked} failed=${failedLinks}` +
+      (ctx.dryRun ? ` would_link=${wouldLink}` : ""),
+  );
+  return failedLinks;
 }
 
 function done(migrated: number, skipped: number, failed: number): MigrationResult {
@@ -218,8 +300,17 @@ function buildPayload(
     ),
   );
 
+  // Label names from three sources: native Jira labels, the issue-type label
+  // (type:*), and any custom field configured as `label:<prefix>` (squad:/eng:).
+  const labelNames = [
+    ...mapJiraLabels(issue.fields.labels ?? [], mappings),
+    ...collectFieldLabels(issue, mappings, project),
+  ];
+  const typeLabel = mapIssueTypeToLabel(issue.fields.issuetype?.name ?? "", mappings, project);
+  if (typeLabel) labelNames.push(typeLabel);
+
   const labelIds: string[] = [];
-  for (const name of mapJiraLabels(issue.fields.labels ?? [], mappings)) {
+  for (const name of labelNames) {
     const id = labelLookup.get(name);
     if (id) labelIds.push(id);
     else logger.warn(`label '${name}' not pre-seeded on Plane project — skipping for ${issue.key}`);

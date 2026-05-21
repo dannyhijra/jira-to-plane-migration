@@ -217,6 +217,32 @@ export class PlaneClient {
   }
 
   /**
+   * Patch an existing work item. Used by the sub-task post-pass to set `parent`
+   * (Plane work-item UUID) after both child and parent have been created, and by
+   * any updater that needs to change fields without recreating the item.
+   */
+  async updateWorkItem(
+    projectId: string,
+    workItemId: string,
+    payload: {
+      parent?: string | null;
+      name?: string;
+      description_html?: string;
+      state?: string;
+      priority?: string;
+      assignees?: string[];
+      labels?: string[];
+      start_date?: string | null;
+      target_date?: string | null;
+    },
+  ): Promise<PlaneWorkItem> {
+    return this.request<PlaneWorkItem>(this.projectPath(projectId, `/issues/${workItemId}/`), {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Adds a comment to a Plane work item. Comment author is always the API key
    * owner — there is no API field to override it. Original Jira author is
    * preserved in the comment_html prefix at the caller (see migrators/comments.ts).

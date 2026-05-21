@@ -38,6 +38,18 @@ export interface ProjectConfig {
    * are left unassigned.
    */
   modules_from_field?: string;
+  /**
+   * If true, Jira epics are ALSO migrated as work items (tagged via
+   * `issue_type_labels`) instead of being excluded when the `epics` entity turns
+   * them into modules. The epic then survives as a work item (description +
+   * comments) AND seeds a module for its children.
+   */
+  epics_as_work_items?: boolean;
+  /**
+   * If true, sub-tasks (Jira `issuetype.subtask`) get their Plane `parent` set to
+   * the migrated parent work item in a post-pass after all issues migrate.
+   */
+  link_subtasks?: boolean;
 }
 
 export interface StateSeedEntry {
@@ -71,8 +83,10 @@ export interface MappingsConfig {
   status: Record<string, Record<string, string>>;
   priority: Record<string, string>;
   labels: Record<string, string>;
-  /** Per-project: jira field id → action ("drop" | "description" | "property:<name>" | "builtin:<field>"). */
+  /** Per-project: jira field id → action ("drop" | "description" | "property:<name>" | "builtin:<field>" | "label:<prefix>"). */
   custom_fields: Record<string, Record<string, string>>;
+  /** Per-project: jira issue type name → plane label to apply (work-item type preservation). */
+  issue_type_labels: Record<string, Record<string, string>>;
 }
 
 function requireEnv(name: string): string {
@@ -106,6 +120,7 @@ export async function loadConfig(): Promise<Config> {
     priority: (mappingsRaw?.priority ?? {}) as Record<string, string>,
     labels: (mappingsRaw?.labels ?? {}) as Record<string, string>,
     custom_fields: (mappingsRaw?.custom_fields ?? {}) as Record<string, Record<string, string>>,
+    issue_type_labels: (mappingsRaw?.issue_type_labels ?? {}) as Record<string, Record<string, string>>,
   };
 
   return {

@@ -99,6 +99,23 @@ export async function migrateLinks(args: MigratorArgs): Promise<MigrationResult>
 
           const relationType = mapJiraLinkToPlaneRelation(link.type?.name ?? "", direction);
 
+          // Deliberately-dropped link types (Polaris, migration_parent) → record skipped.
+          if (!relationType) {
+            logger.info(`skip link ${link.id} (${fromKey} ↔ ${otherKey}): dropped link type "${link.type?.name}"`);
+            if (!ctx.dryRun) {
+              await append({
+                entity: "link",
+                project: ctx.jiraProject,
+                jira_key: link.id,
+                status: "skipped",
+                at: new Date().toISOString(),
+                notes: `dropped link type ${link.type?.name} ${fromKey}→${otherKey}`,
+              });
+            }
+            skipped++;
+            continue;
+          }
+
           try {
             if (ctx.dryRun) {
               logger.info(

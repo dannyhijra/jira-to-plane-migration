@@ -11,6 +11,11 @@
  *
  * Anything we don't explicitly recognise (notably Jira "Cloners", which has no
  * Plane equivalent) maps to the symmetric `relates_to` — the safe, honest choice.
+ *
+ * Returns `null` for link types we deliberately DROP (no Plane representation):
+ *   - "Polaris work item link" — Jira Product Discovery cross-product link.
+ *   - "migration_parent" — artifact of a prior migration.
+ * The links migrator skips (records `skipped`) when this returns null.
  */
 export type PlaneRelationType =
   | "blocking"
@@ -25,8 +30,11 @@ export type PlaneRelationType =
 export function mapJiraLinkToPlaneRelation(
   typeName: string,
   direction: "inward" | "outward",
-): PlaneRelationType {
+): PlaneRelationType | null {
   const t = typeName.trim().toLowerCase();
+
+  // Dropped link types — no useful Plane relation.
+  if (t.includes("polaris") || t === "migration_parent") return null;
 
   // "Blocks" / "Dependency": outward = this blocks other; inward = this is blocked by other.
   if (t === "blocks" || t === "blocker" || t === "blocking" || t === "dependency" || t === "depends") {

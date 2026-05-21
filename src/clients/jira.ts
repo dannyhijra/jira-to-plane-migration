@@ -29,7 +29,8 @@ export interface JiraIssue {
   fields: {
     summary: string;
     description: AdfDoc | null;
-    issuetype: { name: string };
+    issuetype: { name: string; subtask?: boolean };
+    parent?: { key?: string };
     status: { name: string };
     priority: { name: string } | null;
     labels: string[];
