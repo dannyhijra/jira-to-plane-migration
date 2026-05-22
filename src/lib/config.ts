@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { parse as parseYaml } from "yaml";
+import { readFile } from 'node:fs/promises';
+import { parse as parseYaml } from 'yaml';
 
 export interface Config {
   jira: { baseUrl: string; email: string; apiToken: string };
@@ -59,14 +59,14 @@ export interface ProjectConfig {
 
 export interface StateSeedEntry {
   name: string;
-  group: "backlog" | "unstarted" | "started" | "completed" | "cancelled";
+  group: 'backlog' | 'unstarted' | 'started' | 'completed' | 'cancelled';
   default?: boolean;
 }
 
 export interface PropertySeedEntry {
   name: string;
   display_name: string;
-  type: "url" | "text" | "number" | "date" | "select" | "multi-select";
+  type: 'url' | 'text' | 'number' | 'date' | 'select' | 'multi-select';
   /** Only used when type is "select" / "multi-select". */
   options?: string[];
 }
@@ -74,7 +74,7 @@ export interface PropertySeedEntry {
 export interface UserEntry {
   email: string | null;
   displayName?: string;
-  role?: "member" | "admin" | "guest" | "deactivated";
+  role?: 'member' | 'admin' | 'guest' | 'deactivated';
   plane_user_id?: string;
 }
 
@@ -102,53 +102,64 @@ function requireEnv(name: string): string {
 
 async function loadYaml<T>(path: string, fallback: T): Promise<T> {
   try {
-    const raw = await readFile(path, "utf8");
+    const raw = await readFile(path, 'utf8');
     return parseYaml(raw) as T;
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return fallback;
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return fallback;
     throw err;
   }
 }
 
 export async function loadConfig(): Promise<Config> {
-  const projectsFile = await loadYaml<{ projects: Record<string, ProjectConfig> }>(
-    "config/projects.yaml",
-    { projects: {} },
-  );
-  const usersFile = await loadYaml<UsersConfig>("config/users.yaml", {
+  const projectsFile = await loadYaml<{
+    projects: Record<string, ProjectConfig>;
+  }>('config/projects.yaml', { projects: {} });
+  const usersFile = await loadYaml<UsersConfig>('config/users.yaml', {
     fallback_user_id: null,
-    users: {},
+    users: {}
   });
-  const mappingsRaw = await loadYaml<Partial<MappingsConfig> | null>("config/mappings.yaml", {});
+  const mappingsRaw = await loadYaml<Partial<MappingsConfig> | null>(
+    'config/mappings.yaml',
+    {}
+  );
   const mappingsFile: MappingsConfig = {
-    status: (mappingsRaw?.status ?? {}) as Record<string, Record<string, string>>,
+    status: (mappingsRaw?.status ?? {}) as Record<
+      string,
+      Record<string, string>
+    >,
     priority: (mappingsRaw?.priority ?? {}) as Record<string, string>,
     labels: (mappingsRaw?.labels ?? {}) as Record<string, string>,
-    custom_fields: (mappingsRaw?.custom_fields ?? {}) as Record<string, Record<string, string>>,
-    issue_type_labels: (mappingsRaw?.issue_type_labels ?? {}) as Record<string, Record<string, string>>,
+    custom_fields: (mappingsRaw?.custom_fields ?? {}) as Record<
+      string,
+      Record<string, string>
+    >,
+    issue_type_labels: (mappingsRaw?.issue_type_labels ?? {}) as Record<
+      string,
+      Record<string, string>
+    >
   };
 
   return {
     jira: {
-      baseUrl: requireEnv("JIRA_BASE_URL"),
-      email: requireEnv("JIRA_EMAIL"),
-      apiToken: requireEnv("JIRA_API_TOKEN"),
+      baseUrl: requireEnv('JIRA_BASE_URL'),
+      email: requireEnv('JIRA_EMAIL'),
+      apiToken: requireEnv('JIRA_API_TOKEN')
     },
     plane: {
-      baseUrl: requireEnv("PLANE_BASE_URL"),
-      apiKey: requireEnv("PLANE_API_KEY"),
-      workspaceSlug: requireEnv("PLANE_WORKSPACE_SLUG"),
+      baseUrl: requireEnv('PLANE_BASE_URL'),
+      apiKey: requireEnv('PLANE_API_KEY'),
+      workspaceSlug: requireEnv('PLANE_WORKSPACE_SLUG'),
       cookieHeader: process.env.PLANE_COOKIE_HEADER || undefined,
-      csrfToken: process.env.PLANE_CSRF_TOKEN || undefined,
+      csrfToken: process.env.PLANE_CSRF_TOKEN || undefined
     },
     projects: projectsFile.projects,
     users: usersFile,
     mappings: mappingsFile,
-    dryRun: process.env.DRY_RUN === "true",
+    dryRun: process.env.DRY_RUN === 'true',
     sync: {
-      overlapMinutes: parseInt(process.env.SYNC_OVERLAP_MINUTES ?? "5", 10),
-      jiraTimezone: process.env.JIRA_TIMEZONE ?? "Asia/Jakarta",
-      notifyWebhookUrl: process.env.NOTIFY_WEBHOOK_URL || null,
-    },
+      overlapMinutes: parseInt(process.env.SYNC_OVERLAP_MINUTES ?? '5', 10),
+      jiraTimezone: process.env.JIRA_TIMEZONE ?? 'Asia/Jakarta',
+      notifyWebhookUrl: process.env.NOTIFY_WEBHOOK_URL || null
+    }
   };
 }

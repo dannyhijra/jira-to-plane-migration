@@ -1,19 +1,26 @@
-import { logger } from "../lib/logger";
-import { loadConfig } from "../lib/config";
-import { JiraClient } from "../clients/jira";
-import { PlaneClient } from "../clients/plane";
-import { acquireLock, releaseLock } from "./lock";
-import { getProjectState, saveProjectState } from "./syncState";
-import { deltaFrom, streamChangedIssues } from "./delta";
-import { formatSummary, notifySync, type SyncSummary } from "./notify";
+import { logger } from '../lib/logger';
+import { loadConfig } from '../lib/config';
+import { JiraClient } from '../clients/jira';
+import { PlaneClient } from '../clients/plane';
+import { acquireLock, releaseLock } from './lock';
+import { getProjectState, saveProjectState } from './syncState';
+import { deltaFrom, streamChangedIssues } from './delta';
+import {
+  formatSummary,
+  notifyRollup,
+  notifySync,
+  type SyncSummary
+} from './notify';
+
+const MAX_HIGHLIGHT_KEYS = 5;
 import {
   syncIssue,
   prefetchProjectLookups,
-  issueFieldsForProject,
-} from "../migrators/issues";
-import { syncComments } from "../migrators/comments";
-import { syncAttachments } from "../migrators/attachments";
-import { loadManifest } from "../state/manifest";
+  issueFieldsForProject
+} from '../migrators/issues';
+import { syncComments } from '../migrators/comments';
+import { syncAttachments } from '../migrators/attachments';
+import { loadManifest } from '../state/manifest';
 
 export interface SyncOptions {
   /** Optional Jira project key. Omit to sync every project in config. */
@@ -36,7 +43,7 @@ export async function runSync(opts: SyncOptions): Promise<number> {
   try {
     config = await loadConfig();
   } catch (err) {
-    logger.error("Config/auth error:", err);
+    logger.error('Config/auth error:', err);
     return 2;
   }
 
@@ -49,17 +56,21 @@ export async function runSync(opts: SyncOptions): Promise<number> {
     const jira = new JiraClient(config);
     const plane = new PlaneClient(config);
 
-    const projects = opts.project ? [opts.project] : Object.keys(config.projects);
+    const projects = opts.project
+      ? [opts.project]
+      : Object.keys(config.projects);
     if (projects.length === 0) {
-      logger.error("No projects configured.");
+      logger.error('No projects configured.');
       return 2;
     }
 
     for (const project of projects) {
       const projectCfg = config.projects[project];
       if (!projectCfg) {
-        logger.error(`No config for project '${project}' in config/projects.yaml — skipping`);
-        const summary = zeroSummary(project, "error");
+        logger.error(
+          `No config for project '${project}' in config/projects.yaml — skipping`
+        );
+        const summary = zeroSummary(project, 'error');
         summaries.push(summary);
         await notifySync(summary, config, opts.dryRun);
         worstCode = Math.max(worstCode, 1);
@@ -80,7 +91,7 @@ export async function runSync(opts: SyncOptions): Promise<number> {
         from = new Date(opts.since);
         if (Number.isNaN(from.getTime())) {
           logger.error(`Invalid --since value: ${opts.since}`);
-          const summary = zeroSummary(project, "error");
+          const summary = zeroSummary(project, 'error');
           summaries.push(summary);
           await notifySync(summary, config, opts.dryRun);
           worstCode = Math.max(worstCode, 2);
@@ -90,17 +101,20 @@ export async function runSync(opts: SyncOptions): Promise<number> {
         from = await earliestManifestAt(project);
         logger.warn(
           `First sync for ${project}; baseline derived from manifest = ${from.toISOString()}. ` +
-            `Override with --since if this is too broad.`,
+            `Override with --since if this is too broad.`
         );
       }
 
       // Resolve target Plane project id + per-project lookups (members, states, labels).
       let planeProjectId: string;
       try {
-        planeProjectId = await resolvePlaneProjectId(plane, projectCfg.plane_project_identifier);
+        planeProjectId = await resolvePlaneProjectId(
+          plane,
+          projectCfg.plane_project_identifier
+        );
       } catch (err) {
         logger.error(`resolvePlaneProjectId failed for ${project}:`, err);
-        const summary = zeroSummary(project, "error");
+        const summary = zeroSummary(project, 'error');
         summaries.push(summary);
         await notifySync(summary, config, opts.dryRun);
         worstCode = Math.max(worstCode, 2);
@@ -113,7 +127,7 @@ export async function runSync(opts: SyncOptions): Promise<number> {
         jiraProject: project,
         dryRun: opts.dryRun,
         batch: opts.batch,
-        resume: false,
+        resume: false
       });
 
       let created = 0;
@@ -121,20 +135,41 @@ export async function runSync(opts: SyncOptions): Promise<number> {
       let comments = 0;
       let attachments = 0;
       let failed = 0;
+      const createdKeys: string[] = [];
+      const updatedKeys: string[] = [];
 
       try {
-        for await (const issue of streamChangedIssues(jira, project, from, config, fields, opts.batch)) {
+        for await (const issue of streamChangedIssues(
+          jira,
+          project,
+          from,
+          config,
+          fields,
+          opts.batch
+        )) {
           const ctx = {
             config,
             jiraProject: project,
             dryRun: opts.dryRun,
             batch: opts.batch,
-            resume: false,
+            resume: false
           };
-          const r = await syncIssue({ ctx, plane, planeProjectId, lookups, issue });
-          if (r.action === "created") created++;
-          else if (r.action === "updated") updated++;
-          else if (r.action === "failed") {
+          const r = await syncIssue({
+            ctx,
+            plane,
+            planeProjectId,
+            lookups,
+            issue
+          });
+          if (r.action === 'created') {
+            created++;
+            if (createdKeys.length < MAX_HIGHLIGHT_KEYS)
+              createdKeys.push(r.jiraKey);
+          } else if (r.action === 'updated') {
+            updated++;
+            if (updatedKeys.length < MAX_HIGHLIGHT_KEYS)
+              updatedKeys.push(r.jiraKey);
+          } else if (r.action === 'failed') {
             failed++;
             continue;
           }
@@ -152,7 +187,7 @@ export async function runSync(opts: SyncOptions): Promise<number> {
               plane,
               planeProjectId,
               jiraKey: r.jiraKey,
-              planeWorkItemId: planeId,
+              planeWorkItemId: planeId
             });
             comments += cRes.created;
             failed += cRes.failed;
@@ -168,12 +203,15 @@ export async function runSync(opts: SyncOptions): Promise<number> {
               plane,
               planeProjectId,
               jiraKey: r.jiraKey,
-              planeWorkItemId: planeId,
+              planeWorkItemId: planeId
             });
             attachments += aRes.created;
             failed += aRes.failed;
           } catch (err) {
-            logger.warn(`syncAttachments unexpected error for ${r.jiraKey}:`, err);
+            logger.warn(
+              `syncAttachments unexpected error for ${r.jiraKey}:`,
+              err
+            );
             failed++;
           }
         }
@@ -183,7 +221,7 @@ export async function runSync(opts: SyncOptions): Promise<number> {
         failed++;
       }
 
-      const status: SyncSummary["status"] = failed > 0 ? "partial" : "ok";
+      const status: SyncSummary['status'] = failed > 0 ? 'partial' : 'ok';
       const duration_ms = Date.now() - t0;
 
       // Only advance last_sync_at when NOT dry-run.
@@ -198,13 +236,15 @@ export async function runSync(opts: SyncOptions): Promise<number> {
             attachments_created: attachments,
             failed,
             duration_ms,
-            delta_from: from.toISOString(),
-          },
+            delta_from: from.toISOString()
+          }
         });
       }
 
       const summary: SyncSummary = {
         project,
+        projectName: projectCfg.plane_project_name,
+        planeProjectId,
         issues_created: created,
         issues_updated: updated,
         comments_created: comments,
@@ -212,6 +252,10 @@ export async function runSync(opts: SyncOptions): Promise<number> {
         failed,
         duration_ms,
         status,
+        created_keys: createdKeys.length > 0 ? createdKeys : undefined,
+        updated_keys: updatedKeys.length > 0 ? updatedKeys : undefined,
+        created_total: created,
+        updated_total: updated
       };
       summaries.push(summary);
       await notifySync(summary, config, opts.dryRun);
@@ -219,16 +263,16 @@ export async function runSync(opts: SyncOptions): Promise<number> {
       if (failed > 0) worstCode = Math.max(worstCode, 1);
     }
 
-    // Final roll-up — stdout only, for the terminal operator. Each project
-    // has already been pushed to chat individually above.
+    // End-of-run roll-up — both to chat (concise) and stdout (detailed).
+    await notifyRollup(summaries, config, opts.dryRun);
     // eslint-disable-next-line no-console
-    console.log("\n" + formatSummary(summaries) + "\n");
+    console.log('\n' + formatSummary(summaries) + '\n');
     return worstCode;
   } catch (err) {
-    logger.error("Unexpected sync error:", err);
+    logger.error('Unexpected sync error:', err);
     try {
       // eslint-disable-next-line no-console
-      console.log("\n" + formatSummary(summaries) + "\n");
+      console.log('\n' + formatSummary(summaries) + '\n');
     } catch {
       /* ignore */
     }
@@ -239,10 +283,14 @@ export async function runSync(opts: SyncOptions): Promise<number> {
 }
 
 /** Look up the Plane project UUID for a given Plane project identifier (e.g. "ENG"). */
-async function resolvePlaneProjectId(plane: PlaneClient, identifier: string): Promise<string> {
+async function resolvePlaneProjectId(
+  plane: PlaneClient,
+  identifier: string
+): Promise<string> {
   const all = await plane.listProjects();
   const hit = all.find((p) => p.identifier === identifier);
-  if (!hit) throw new Error(`Plane project not found by identifier=${identifier}`);
+  if (!hit)
+    throw new Error(`Plane project not found by identifier=${identifier}`);
   return hit.id;
 }
 
@@ -260,22 +308,25 @@ async function earliestManifestAt(project: string): Promise<Date> {
   let min: number | null = null;
   for (const e of manifest.values()) {
     if (e.project !== project) continue;
-    if (e.entity !== "work_item") continue;
-    if (e.status !== "ok") continue;
+    if (e.entity !== 'work_item') continue;
+    if (e.status !== 'ok') continue;
     const t = Date.parse(e.at);
     if (Number.isNaN(t)) continue;
     if (min === null || t < min) min = t;
   }
   if (min === null) {
     logger.warn(
-      `earliestManifestAt: no work_item entries for ${project}; defaulting to epoch (1970-01-01).`,
+      `earliestManifestAt: no work_item entries for ${project}; defaulting to epoch (1970-01-01).`
     );
     return new Date(0);
   }
   return new Date(min);
 }
 
-function zeroSummary(project: string, status: SyncSummary["status"]): SyncSummary {
+function zeroSummary(
+  project: string,
+  status: SyncSummary['status']
+): SyncSummary {
   return {
     project,
     issues_created: 0,
@@ -284,6 +335,6 @@ function zeroSummary(project: string, status: SyncSummary["status"]): SyncSummar
     attachments_created: 0,
     failed: 0,
     duration_ms: 0,
-    status,
+    status
   };
 }
