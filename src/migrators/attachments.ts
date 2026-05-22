@@ -1,9 +1,9 @@
 import type { MigratorArgs } from "./issues";
-import type { MigrationResult } from "../state/types";
-import type { JiraAttachment } from "../clients/jira";
-import { PlaneAttachmentStorageError } from "../clients/plane";
+import type { MigrationContext, MigrationResult } from "../state/types";
+import type { JiraAttachment, JiraClient } from "../clients/jira";
+import { PlaneAttachmentStorageError, type PlaneClient } from "../clients/plane";
 import { logger } from "../lib/logger";
-import { append, hasMigrated, loadManifest } from "../state/manifest";
+import { append, getEntry, hasMigrated, loadManifest } from "../state/manifest";
 
 /**
  * Migrate Jira issue attachments to Plane.
@@ -149,6 +149,132 @@ export async function migrateAttachments(args: MigratorArgs): Promise<MigrationR
     (placeholderOnly ? " (placeholder-only mode was active)" : ""),
   );
   return { ok: failed === 0, migrated, skipped, failed };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Incremental sync helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SyncAttachmentsArgs {
+  ctx: MigrationContext;
+  jira: JiraClient;
+  plane: PlaneClient;
+  planeProjectId: string;
+  /** The Jira issue key whose attachments we should reconcile. */
+  jiraKey: string;
+  /** Plane work-item UUID for that Jira issue. */
+  planeWorkItemId: string;
+}
+
+export interface SyncAttachmentsResult {
+  created: number;
+  skipped: number;
+  failed: number;
+}
+
+/**
+ * Reconcile attachments on one Jira issue → Plane. New-only, per locked policy:
+ *   - For each Jira attachment, look up manifest entry keyed by
+ *     `<JIRA_ISSUE_KEY>#attachment#<ATTACHMENT_ID>`.
+ *   - If absent → upload (or placeholder fall-back on storage error), append
+ *     manifest entry, count as created.
+ *   - If present → skip.
+ *
+ * Unlike the bulk migrator we do NOT trip into placeholder-only mode for the
+ * remainder of a sync run — sync is intentionally light-touch (few new files
+ * per run) and a transient storage outage during one sync should not pollute
+ * the manifest for an entire project.
+ */
+export async function syncAttachments(args: SyncAttachmentsArgs): Promise<SyncAttachmentsResult> {
+  const { ctx, jira, plane, planeProjectId, jiraKey, planeWorkItemId } = args;
+  let created = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  let attachments: JiraAttachment[];
+  try {
+    attachments = await jira.listAttachments(jiraKey);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    logger.warn(`syncAttachments listAttachments failed for ${jiraKey}: ${error}`);
+    return { created, skipped, failed: failed + 1 };
+  }
+  if (attachments.length === 0) return { created, skipped, failed };
+
+  for (const a of attachments) {
+    const key = `${jiraKey}#attachment#${a.id}`;
+    const existing = await getEntry("attachment", key);
+    if (existing?.status === "ok") {
+      skipped++;
+      continue;
+    }
+
+    try {
+      if (ctx.dryRun) {
+        logger.info(`[dry-run] would CREATE attachment ${key} (${a.filename} ${a.size}B)`);
+        skipped++;
+        continue;
+      }
+
+      let mode: "uploaded" | "placeholder" = "placeholder";
+      let planeId: string | undefined;
+      try {
+        const { blob } = await jira.downloadAttachment(a.content);
+        const uploaded = await plane.uploadAttachment(
+          planeProjectId,
+          planeWorkItemId,
+          blob,
+          a.filename,
+          a.mimeType,
+        );
+        planeId = uploaded.id;
+        mode = "uploaded";
+      } catch (err) {
+        if (err instanceof PlaneAttachmentStorageError) {
+          logger.warn(
+            `sync attachment upload failed for ${key}: ${err.message.slice(0, 200)} — falling back to placeholder`,
+          );
+        } else {
+          throw err;
+        }
+      }
+
+      if (mode === "placeholder") {
+        const placeholder = await plane.addComment(planeProjectId, planeWorkItemId, {
+          comment_html: renderPlaceholderHtml(a, jiraKey),
+        });
+        planeId = placeholder.id;
+      }
+
+      await append({
+        entity: "attachment",
+        project: ctx.jiraProject,
+        jira_key: key,
+        plane_id: planeId,
+        status: "ok",
+        at: new Date().toISOString(),
+        notes: `sync:${mode}`,
+      });
+      created++;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.warn(`syncAttachments failed: ${key}: ${error}`);
+      if (!ctx.dryRun) {
+        await append({
+          entity: "attachment",
+          project: ctx.jiraProject,
+          jira_key: key,
+          status: "failed",
+          at: new Date().toISOString(),
+          error: error.slice(0, 500),
+          notes: `sync:${jiraKey}`,
+        });
+      }
+      failed++;
+    }
+  }
+
+  return { created, skipped, failed };
 }
 
 /**

@@ -2,7 +2,7 @@ import type { JiraClient, JiraIssue } from "../clients/jira";
 import type { PlaneClient } from "../clients/plane";
 import type { MigrationContext, MigrationResult } from "../state/types";
 import { logger } from "../lib/logger";
-import { append, hasMigrated, loadManifest } from "../state/manifest";
+import { append, getEntry, hasMigrated, loadManifest } from "../state/manifest";
 import { mapJiraStatusToPlaneState } from "../mappers/status";
 import { mapJiraPriorityToPlanePriority } from "../mappers/priority";
 import { mapJiraLabels, mapIssueTypeToLabel } from "../mappers/labels";
@@ -18,7 +18,7 @@ export interface MigratorArgs {
 }
 
 /** Jira built-in fields requested for every issue regardless of project. */
-const BASE_ISSUE_FIELDS = [
+export const BASE_ISSUE_FIELDS = [
   "summary",
   "description",
   "status",
@@ -31,6 +31,16 @@ const BASE_ISSUE_FIELDS = [
   "created",
   "updated",
 ];
+
+/**
+ * The complete list of Jira fields we need to fetch to build a Plane payload
+ * for a project. Combines the BASE_ISSUE_FIELDS with all custom field ids
+ * referenced in `config/mappings.yaml` for that project.
+ */
+export function issueFieldsForProject(ctx: MigrationContext): string[] {
+  const projectFieldIds = customFieldIds(ctx.config.mappings, ctx.jiraProject);
+  return Array.from(new Set([...BASE_ISSUE_FIELDS, ...projectFieldIds]));
+}
 
 export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult> {
   const { ctx, jira, plane, planeProjectId } = args;
@@ -57,8 +67,7 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
   const labelLookup = new Map(planeLabels.map((l) => [l.name, l.id]));
 
   // Pull only the custom/built-in fields this project actually maps.
-  const projectFieldIds = customFieldIds(ctx.config.mappings, ctx.jiraProject);
-  const issueFields = Array.from(new Set([...BASE_ISSUE_FIELDS, ...projectFieldIds]));
+  const issueFields = issueFieldsForProject(ctx);
 
   let migrated = 0;
   let skipped = 0;
@@ -98,7 +107,7 @@ export async function migrateIssues(args: MigratorArgs): Promise<MigrationResult
       }
 
       try {
-        const payload = buildPayload(issue, ctx, projectCfg, memberLookup, stateLookup, stateByGroup, labelLookup);
+        const payload = mapIssueToPlanePayload(issue, ctx, projectCfg, memberLookup, stateLookup, stateByGroup, labelLookup);
 
         if (ctx.dryRun) {
           logger.info(
@@ -234,7 +243,7 @@ function done(migrated: number, skipped: number, failed: number): MigrationResul
   return { ok: failed === 0, migrated, skipped, failed };
 }
 
-interface CreatePayload {
+export interface CreatePayload {
   name: string;
   description_html: string;
   state?: string;
@@ -250,8 +259,12 @@ interface CreatePayload {
  * resolution (state, priority, assignee, labels, custom fields) happens here.
  * Unknown state falls back to the project's first "unstarted" state;
  * unresolved labels are skipped (not auto-created mid-run).
+ *
+ * This is the single source of truth for issue mapping — both the bulk
+ * migrator and the incremental sync share it, so updates apply the same
+ * deterministic prefix and field choices on every run (idempotent PATCH).
  */
-function buildPayload(
+export function mapIssueToPlanePayload(
   issue: JiraIssue,
   ctx: MigrationContext,
   projectCfg: import("../lib/config").ProjectConfig,
@@ -379,4 +392,159 @@ function wrapAsHtml(markdown: string): string {
   // chars (`>`, `*`, `_`) — those must stay literal for reassign to parse.
   const safe = markdown.replace(/<(\/?[a-zA-Z][^>]*)>/g, "&lt;$1&gt;");
   return `<p>${safe}</p>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Incremental sync helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ProjectIssueLookups {
+  memberLookup: Map<string, string>;
+  stateLookup: Map<string, string>;
+  stateByGroup: Map<string, string>;
+  labelLookup: Map<string, string>;
+}
+
+/**
+ * Fetch the per-project reference lookups used to build payloads. Called once
+ * by the sync orchestrator per project, then reused for every issue in the
+ * delta stream. Mirrors the upfront fetches in `migrateIssues`.
+ */
+export async function prefetchProjectLookups(
+  plane: PlaneClient,
+  planeProjectId: string,
+): Promise<ProjectIssueLookups> {
+  const [members, planeStates, planeLabels] = await Promise.all([
+    plane.listProjectMembers(planeProjectId),
+    plane.listStates(planeProjectId),
+    plane.listLabels(planeProjectId),
+  ]);
+  return {
+    memberLookup: buildPlaneMemberLookup(members),
+    stateLookup: new Map(planeStates.map((s) => [s.name, s.id])),
+    stateByGroup: new Map(planeStates.map((s) => [s.group, s.id])),
+    labelLookup: new Map(planeLabels.map((l) => [l.name, l.id])),
+  };
+}
+
+export interface SyncIssueArgs {
+  ctx: MigrationContext;
+  plane: PlaneClient;
+  planeProjectId: string;
+  lookups: ProjectIssueLookups;
+  /** One issue from the delta stream. */
+  issue: JiraIssue;
+}
+
+export interface SyncIssueResult {
+  action: "created" | "updated" | "failed" | "skipped";
+  planeId?: string;
+  jiraKey: string;
+}
+
+/**
+ * Idempotent sync of one Jira issue into Plane.
+ *
+ * - Existing in manifest with status=ok → PATCH (Jira is source of truth).
+ * - Otherwise → POST (new issue since initial migration).
+ * - Dry-run → log only, no writes, no manifest entries.
+ *
+ * The Plane payload is deterministic — re-applying it overwrites direct Plane
+ * edits, which is the locked policy. Failures append a manifest entry tagged
+ * `notes: "sync"` so `state/failures.jsonl` filtering picks them up.
+ */
+export async function syncIssue(args: SyncIssueArgs): Promise<SyncIssueResult> {
+  const { ctx, plane, planeProjectId, lookups, issue } = args;
+  const jiraKey = issue.key;
+  const projectCfg = ctx.config.projects[ctx.jiraProject];
+
+  if (!projectCfg) {
+    logger.error(`syncIssue: no project config for ${ctx.jiraProject}`);
+    return { action: "failed", jiraKey };
+  }
+
+  let payload: CreatePayload;
+  try {
+    payload = mapIssueToPlanePayload(
+      issue,
+      ctx,
+      projectCfg,
+      lookups.memberLookup,
+      lookups.stateLookup,
+      lookups.stateByGroup,
+      lookups.labelLookup,
+    );
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    logger.warn(`syncIssue map failed: ${jiraKey}: ${error}`);
+    if (!ctx.dryRun) {
+      await append({
+        entity: "work_item",
+        project: ctx.jiraProject,
+        jira_key: jiraKey,
+        status: "failed",
+        at: new Date().toISOString(),
+        error: error.slice(0, 500),
+        notes: "sync",
+      });
+    }
+    return { action: "failed", jiraKey };
+  }
+
+  const existing = await getEntry("work_item", jiraKey);
+
+  try {
+    if (existing?.status === "ok" && existing.plane_id) {
+      // UPDATE path — Jira is source of truth, overwrite Plane fields.
+      if (ctx.dryRun) {
+        logger.info(`[dry-run] would UPDATE ${jiraKey} → ${existing.plane_id}`);
+        return { action: "skipped", planeId: existing.plane_id, jiraKey };
+      }
+      await plane.updateWorkItem(planeProjectId, existing.plane_id, payload);
+      await append({
+        entity: "work_item",
+        project: ctx.jiraProject,
+        jira_key: jiraKey,
+        plane_id: existing.plane_id,
+        status: "ok",
+        at: new Date().toISOString(),
+        notes: "sync:update",
+      });
+      logger.info(`synced UPDATE ${jiraKey} → ${existing.plane_id}`);
+      return { action: "updated", planeId: existing.plane_id, jiraKey };
+    }
+
+    // CREATE path — new issue since initial migration.
+    if (ctx.dryRun) {
+      logger.info(`[dry-run] would CREATE ${jiraKey}`);
+      return { action: "skipped", jiraKey };
+    }
+    const created = await plane.createWorkItem(planeProjectId, payload);
+    await append({
+      entity: "work_item",
+      project: ctx.jiraProject,
+      jira_key: jiraKey,
+      plane_id: created.id,
+      status: "ok",
+      at: new Date().toISOString(),
+      notes: "sync:create",
+    });
+    logger.info(`synced CREATE ${jiraKey} → ${projectCfg.plane_project_identifier}-${created.sequence_id}`);
+    return { action: "created", planeId: created.id, jiraKey };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    logger.warn(`syncIssue failed: ${jiraKey}: ${error}`);
+    if (!ctx.dryRun) {
+      await append({
+        entity: "work_item",
+        project: ctx.jiraProject,
+        jira_key: jiraKey,
+        status: "failed",
+        at: new Date().toISOString(),
+        error: error.slice(0, 500),
+        notes: "sync",
+      });
+    }
+    return { action: "failed", jiraKey };
+  }
 }

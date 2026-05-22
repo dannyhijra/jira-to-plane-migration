@@ -1,8 +1,9 @@
 import type { MigratorArgs } from "./issues";
-import type { MigrationResult } from "../state/types";
-import type { JiraComment } from "../clients/jira";
+import type { MigrationContext, MigrationResult } from "../state/types";
+import type { JiraClient, JiraComment } from "../clients/jira";
+import type { PlaneClient } from "../clients/plane";
 import { logger } from "../lib/logger";
-import { append, hasMigrated, loadManifest } from "../state/manifest";
+import { append, getEntry, hasMigrated, loadManifest } from "../state/manifest";
 import { adfToMarkdown } from "../lib/adf";
 
 /**
@@ -86,6 +87,99 @@ export async function migrateComments(args: MigratorArgs): Promise<MigrationResu
 
   logger.info(`migrateComments done: migrated=${migrated} skipped=${skipped} failed=${failed}`);
   return { ok: failed === 0, migrated, skipped, failed };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Incremental sync helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SyncCommentsArgs {
+  ctx: MigrationContext;
+  jira: JiraClient;
+  plane: PlaneClient;
+  planeProjectId: string;
+  /** The Jira issue key whose comments we should reconcile. */
+  jiraKey: string;
+  /** Plane work-item UUID for that Jira issue. */
+  planeWorkItemId: string;
+}
+
+export interface SyncCommentsResult {
+  created: number;
+  skipped: number;
+  failed: number;
+}
+
+/**
+ * Reconcile Jira comments on one issue → Plane. New-comments-only:
+ *   - For each Jira comment, look up manifest entry keyed by
+ *     `<JIRA_ISSUE_KEY>#<COMMENT_ID>`.
+ *   - If absent → POST to Plane, append manifest entry, count as created.
+ *   - If present → skip (edits to existing comments are ignored per locked policy).
+ * Honors `ctx.dryRun`.
+ */
+export async function syncComments(args: SyncCommentsArgs): Promise<SyncCommentsResult> {
+  const { ctx, jira, plane, planeProjectId, jiraKey, planeWorkItemId } = args;
+  let created = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  let comments: JiraComment[];
+  try {
+    comments = await jira.listComments(jiraKey, ctx.batch);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    logger.warn(`syncComments listComments failed for ${jiraKey}: ${error}`);
+    return { created, skipped, failed: failed + 1 };
+  }
+
+  for (const c of comments) {
+    const commentKey = `${jiraKey}#${c.id}`;
+    const existing = await getEntry("comment", commentKey);
+    if (existing?.status === "ok") {
+      skipped++;
+      continue;
+    }
+
+    try {
+      const commentHtml = wrapAsHtml(buildCommentBody(c));
+
+      if (ctx.dryRun) {
+        logger.info(`[dry-run] would CREATE comment ${commentKey}`);
+        skipped++;
+        continue;
+      }
+
+      const out = await plane.addComment(planeProjectId, planeWorkItemId, { comment_html: commentHtml });
+      await append({
+        entity: "comment",
+        project: ctx.jiraProject,
+        jira_key: commentKey,
+        plane_id: out.id,
+        status: "ok",
+        at: new Date().toISOString(),
+        notes: `sync:${jiraKey}`,
+      });
+      created++;
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.warn(`syncComments failed: ${commentKey}: ${error}`);
+      if (!ctx.dryRun) {
+        await append({
+          entity: "comment",
+          project: ctx.jiraProject,
+          jira_key: commentKey,
+          status: "failed",
+          at: new Date().toISOString(),
+          error: error.slice(0, 500),
+          notes: `sync:${jiraKey}`,
+        });
+      }
+      failed++;
+    }
+  }
+
+  return { created, skipped, failed };
 }
 
 function buildCommentBody(c: JiraComment): string {

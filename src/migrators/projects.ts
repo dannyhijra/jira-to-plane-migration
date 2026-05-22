@@ -10,15 +10,19 @@ import { migrateEpics } from "./epics";
 import { migrateAttachments } from "./attachments";
 import { migrateLinks } from "./links";
 import { migrateModules } from "./modules";
+import { notifyRun, type RunSummary } from "../sync/notify";
 
 export async function runMigration(ctx: MigrationContext): Promise<MigrationResult> {
+  const t0 = Date.now();
   const jira = new JiraClient(ctx.config);
   const plane = new PlaneClient(ctx.config);
   const projectCfg = ctx.config.projects[ctx.jiraProject];
 
   if (!projectCfg) {
     logger.error(`No config for project '${ctx.jiraProject}' in config/projects.yaml`);
-    return { ok: false, migrated: 0, skipped: 0, failed: 1, notes: "missing project config" };
+    const failed: MigrationResult = { ok: false, migrated: 0, skipped: 0, failed: 1, notes: "missing project config" };
+    await notifyRun(toRunSummary(ctx, failed, Date.now() - t0), ctx.config);
+    return failed;
   }
 
   const entities = ctx.only ? [ctx.only] : projectCfg.migrate_entities;
@@ -26,7 +30,9 @@ export async function runMigration(ctx: MigrationContext): Promise<MigrationResu
 
   const planeProjectId = await ensurePlaneProject(plane, projectCfg, ctx.dryRun);
   if (!planeProjectId) {
-    return { ok: false, migrated: 0, skipped: 0, failed: 1, notes: "plane project unresolved" };
+    const failed: MigrationResult = { ok: false, migrated: 0, skipped: 0, failed: 1, notes: "plane project unresolved" };
+    await notifyRun(toRunSummary(ctx, failed, Date.now() - t0), ctx.config);
+    return failed;
   }
 
   const results: MigrationResult[] = [];
@@ -49,7 +55,35 @@ export async function runMigration(ctx: MigrationContext): Promise<MigrationResu
   );
 
   logger.info(`Done. migrated=${total.migrated} skipped=${total.skipped} failed=${total.failed}`);
+  await notifyRun(toRunSummary(ctx, total, Date.now() - t0), ctx.config);
   return total;
+}
+
+/**
+ * Map an internal MigrationResult to the notify RunSummary shape.
+ *   ok=true             → "ok"
+ *   ok=false, work>0    → "partial"  (some entities migrated, some failed)
+ *   ok=false, work=0    → "error"    (didn't get anywhere)
+ */
+function toRunSummary(
+  ctx: MigrationContext,
+  result: MigrationResult,
+  duration_ms: number,
+): RunSummary {
+  const work = result.migrated + result.skipped;
+  let status: RunSummary["status"];
+  if (result.ok) status = "ok";
+  else status = work > 0 ? "partial" : "error";
+  return {
+    project: ctx.jiraProject,
+    entity: ctx.only,
+    migrated: result.migrated,
+    skipped: result.skipped,
+    failed: result.failed,
+    duration_ms,
+    status,
+    dryRun: ctx.dryRun,
+  };
 }
 
 /**

@@ -5,6 +5,8 @@ node_modules/
 state/manifest.jsonl
 state/manifest.jsonl.bak-*
 state/failures.jsonl
+state/sync-state.json
+state/.sync.lock
 *.log
 .DS_Store
 

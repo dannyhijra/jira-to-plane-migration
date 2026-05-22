@@ -50,6 +50,8 @@ The API key owner ("migration bot") only ever appears as `created_by` and commen
 | `/migrate-verify <PROJECT>`         | Random-sample diff via MCPs                                | Phase 6    |
 | `/migrate-reassign <PROJECT>`       | Post-signup reassignment pass                              | Stage 3    |
 | `/migrate-status [PROJECT]`         | Quick progress and failure summary from manifest           | Anytime    |
+| `/migrate-sync [PROJECT]`           | Incremental sync wrapper (calls `bun run migrate sync`)    | Post-cut   |
+| `/migrate-sync-status [PROJECT]`    | Read `state/sync-state.json` and report last-run stats     | Anytime    |
 
 ## Skills under `.claude/skills/`
 
@@ -57,6 +59,7 @@ The API key owner ("migration bot") only ever appears as `created_by` and commen
 - `migration-user-strategy` — three-stage flow, prefix formats (CRITICAL)
 - `migration-implementing-migrators` — code patterns for migrator files
 - `migration-verification` — diff rules and report format
+- `migration-sync` — incremental sync semantics, exit codes, locked policies
 
 These are auto-loaded when relevant. Skill files reference each other when needed.
 
@@ -103,3 +106,25 @@ Current approach (Option A from setup): the API key in `.env` belongs to the per
 **Workspace admin role is required in the Plane UI** to invite new members (the UI button only appears for admin/owner). The API key role doesn't matter for Stage 1 because Stage 1 is manual.
 
 If/when a dedicated service account is created later, swap the API key in `.env` — no code change needed.
+
+## Sync (HBANK-987)
+
+After the initial one-shot migration, `bun run migrate sync` keeps Plane updated with Jira on each invocation, until final cutover. Deterministic CLI — no LLM, no MCP in the code path.
+
+**Three locked policies** (do not deviate; details in `docs/sync-design.md` and `.claude/skills/migration-sync/SKILL.md`):
+
+1. Deletions ignored — deleted Jira issues leave their Plane work items untouched.
+2. Jira is source of truth — every run overwrites Plane work-item fields from Jira. Direct Plane edits are lost on the next sync. Communicate this to the team.
+3. New comments only — comments migrate once; later edits are ignored.
+
+**Overlap window:** each run queries `updated >= (last_sync_at − SYNC_OVERLAP_MINUTES)` (default 5 min). The saved `last_sync_at` is the run START time, so overlap on the next run covers anything that changed mid-run. Re-processing is harmless (idempotent PATCH).
+
+**Exit codes:** `0` clean · `1` partial (item failures, state still advanced) · `2` config/auth error · `3` locked (another run in progress).
+
+**State files** (all gitignored):
+- `state/sync-state.json` — per-project `last_sync_at`, last_run stats. Owned by the CLI; never hand-edit.
+- `state/.sync.lock` — single-instance lock; stale (>1h) → auto-reclaimed.
+
+**Slash commands:** `/migrate-sync [PROJECT]` (thin wrapper, dry-run first then real), `/migrate-sync-status [PROJECT]` (pure file read). The wrappers MUST NOT reimplement sync logic via MCP — only the CLI does the work, that's the whole point.
+
+Pointer for deeper context: `docs/sync-design.md` and the `migration-sync` skill.

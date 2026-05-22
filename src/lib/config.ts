@@ -16,6 +16,11 @@ export interface Config {
   users: UsersConfig;
   mappings: MappingsConfig;
   dryRun: boolean;
+  sync: {
+    overlapMinutes: number;
+    jiraTimezone: string;
+    notifyWebhookUrl: string | null;
+  };
 }
 
 export interface ProjectConfig {
@@ -140,5 +145,10 @@ export async function loadConfig(): Promise<Config> {
     users: usersFile,
     mappings: mappingsFile,
     dryRun: process.env.DRY_RUN === "true",
+    sync: {
+      overlapMinutes: parseInt(process.env.SYNC_OVERLAP_MINUTES ?? "5", 10),
+      jiraTimezone: process.env.JIRA_TIMEZONE ?? "Asia/Jakarta",
+      notifyWebhookUrl: process.env.NOTIFY_WEBHOOK_URL || null,
+    },
   };
 }
