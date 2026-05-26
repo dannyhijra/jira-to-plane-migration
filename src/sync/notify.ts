@@ -195,13 +195,23 @@ function statusIcon(status: 'ok' | 'partial' | 'error'): string {
  * mirrors to stdout. Webhook failures never propagate — they're logged and
  * swallowed so a flaky notification channel can't break a migration.
  */
-export async function postMessage(text: string, config: Config): Promise<void> {
+export async function postMessage(
+  text: string,
+  config: Config,
+  dryRun: boolean
+): Promise<void> {
   // Always emit to stdout (manual runs see this in the terminal).
   // eslint-disable-next-line no-console
   console.log('\n' + text + '\n');
 
   const url = config.sync.notifyWebhookUrl;
   if (!url) return;
+
+  if (dryRun) {
+    // eslint-disable-next-line no-console
+    console.log('[dry-run: webhook suppressed]');
+    return;
+  }
 
   try {
     // {"text": "..."} works for both Google Chat and Slack incoming webhooks.
@@ -225,7 +235,7 @@ export async function notifySync(
   config: Config,
   dryRun: boolean
 ): Promise<void> {
-  await postMessage(formatSyncMessage(summary, dryRun, config), config);
+  await postMessage(formatSyncMessage(summary, dryRun, config), config, dryRun);
 }
 
 /** Convenience: send the end-of-run roll-up message. */
@@ -235,7 +245,7 @@ export async function notifyRollup(
   dryRun: boolean
 ): Promise<void> {
   if (summaries.length === 0) return;
-  await postMessage(formatRollupMessage(summaries, dryRun), config);
+  await postMessage(formatRollupMessage(summaries, dryRun), config, dryRun);
 }
 
 /** Convenience: send one per-project bulk-migration message. */
@@ -243,5 +253,5 @@ export async function notifyRun(
   summary: RunSummary,
   config: Config
 ): Promise<void> {
-  await postMessage(formatRunMessage(summary), config);
+  await postMessage(formatRunMessage(summary), config, false);
 }
