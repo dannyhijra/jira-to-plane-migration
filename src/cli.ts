@@ -1,6 +1,6 @@
-import { parseArgs } from "node:util";
-import { logger } from "./lib/logger";
-import { loadConfig } from "./lib/config";
+import { parseArgs } from 'node:util';
+import { logger } from './lib/logger';
+import { loadConfig } from './lib/config';
 
 const HELP = `
 jira-to-plane-migration
@@ -26,6 +26,12 @@ Common options:
 
 Sync options:
   --since <ISO>           Override first-sync baseline (e.g. 2026-05-01T00:00:00Z)
+  --backfill              Ignore the delta window: re-pull ALL issues and
+                          re-render descriptions + existing comment bodies.
+                          Use to repair formatting after an adfToMarkdown fix.
+                          Does not affect future syncs (last_sync_at advances
+                          normally). Run with --dry-run first.
+  --limit <N>             Cap issues processed per project (canary runs).
   (also honors --dry-run and --batch)
 `;
 
@@ -33,18 +39,19 @@ async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     args: Bun.argv.slice(2),
     options: {
-      "jira-project": { type: "string" },
-      "dry-run": { type: "boolean", default: false },
-      only: { type: "string" },
-      batch: { type: "string", default: "50" },
-      limit: { type: "string" },
-      resume: { type: "boolean", default: false },
-      sample: { type: "string", default: "20" },
-      since: { type: "string" },
-      help: { type: "boolean", short: "h", default: false },
+      'jira-project': { type: 'string' },
+      'dry-run': { type: 'boolean', default: false },
+      only: { type: 'string' },
+      batch: { type: 'string', default: '50' },
+      limit: { type: 'string' },
+      resume: { type: 'boolean', default: false },
+      sample: { type: 'string', default: '20' },
+      since: { type: 'string' },
+      backfill: { type: 'boolean', default: false },
+      help: { type: 'boolean', short: 'h', default: false }
     },
     allowPositionals: true,
-    strict: true,
+    strict: true
   });
 
   if (values.help || positionals.length === 0) {
@@ -53,58 +60,72 @@ async function main(): Promise<void> {
   }
 
   const command = positionals[0];
-  const jiraProject = values["jira-project"];
+  const jiraProject = values['jira-project'];
 
   // `sync` is the only command that does not require --jira-project (omitting
   // syncs every project in config). All other commands still need it.
-  if (command !== "sync" && !jiraProject) {
-    logger.error("--jira-project is required");
+  if (command !== 'sync' && !jiraProject) {
+    logger.error('--jira-project is required');
     process.exit(1);
   }
 
   switch (command) {
-    case "inspect": {
+    case 'inspect': {
       const config = await loadConfig();
       void config;
-      logger.info(`command=${command} project=${jiraProject} dryRun=${values["dry-run"]}`);
-      logger.info("inspect: not implemented — use the Atlassian MCP in Claude Code for discovery");
-      logger.info("Then write findings into config/projects.yaml and config/mappings.yaml.");
+      logger.info(
+        `command=${command} project=${jiraProject} dryRun=${values['dry-run']}`
+      );
+      logger.info(
+        'inspect: not implemented — use the Atlassian MCP in Claude Code for discovery'
+      );
+      logger.info(
+        'Then write findings into config/projects.yaml and config/mappings.yaml.'
+      );
       break;
     }
 
-    case "run": {
+    case 'run': {
       const config = await loadConfig();
-      logger.info(`command=${command} project=${jiraProject} dryRun=${values["dry-run"]}`);
-      const { runMigration } = await import("./migrators/projects");
+      logger.info(
+        `command=${command} project=${jiraProject} dryRun=${values['dry-run']}`
+      );
+      const { runMigration } = await import('./migrators/projects');
       await runMigration({
         config,
         jiraProject: jiraProject!,
-        dryRun: values["dry-run"] ?? false,
+        dryRun: values['dry-run'] ?? false,
         only: values.only,
-        batch: parseInt(values.batch ?? "50", 10),
+        batch: parseInt(values.batch ?? '50', 10),
         limit: values.limit ? parseInt(values.limit, 10) : undefined,
-        resume: values.resume ?? false,
+        resume: values.resume ?? false
       });
       break;
     }
 
-    case "verify": {
-      logger.info(`command=${command} project=${jiraProject} dryRun=${values["dry-run"]}`);
-      logger.info("verify: not implemented yet");
-      logger.info(`Would sample ${values.sample} items from project ${jiraProject} and diff.`);
+    case 'verify': {
+      logger.info(
+        `command=${command} project=${jiraProject} dryRun=${values['dry-run']}`
+      );
+      logger.info('verify: not implemented yet');
+      logger.info(
+        `Would sample ${values.sample} items from project ${jiraProject} and diff.`
+      );
       break;
     }
 
-    case "sync": {
+    case 'sync': {
       logger.info(
-        `command=sync project=${jiraProject ?? "<all>"} dryRun=${values["dry-run"]} since=${values.since ?? "<auto>"}`,
+        `command=sync project=${jiraProject ?? '<all>'} dryRun=${values['dry-run']} since=${values.since ?? '<auto>'} backfill=${values.backfill}`
       );
-      const { runSync } = await import("./sync");
+      const { runSync } = await import('./sync');
       const code = await runSync({
         project: jiraProject,
-        dryRun: values["dry-run"] ?? false,
+        dryRun: values['dry-run'] ?? false,
         since: values.since,
-        batch: parseInt(values.batch ?? "50", 10),
+        batch: parseInt(values.batch ?? '50', 10),
+        backfill: values.backfill ?? false,
+        limit: values.limit ? parseInt(values.limit, 10) : undefined
       });
       process.exit(code);
     }
@@ -117,6 +138,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  logger.error("Fatal:", err);
+  logger.error('Fatal:', err);
   process.exit(1);
 });

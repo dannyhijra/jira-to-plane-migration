@@ -29,6 +29,19 @@ export interface SyncOptions {
   /** ISO override for the first-sync baseline. */
   since?: string;
   batch: number;
+  /**
+   * Backfill mode: ignore the delta window (pull ALL issues since epoch) and
+   * re-render existing comment bodies in place. Use to repair already-migrated
+   * descriptions/comments after an adfToMarkdown fix. Does NOT change how
+   * last_sync_at is advanced, so subsequent normal syncs are unaffected.
+   */
+  backfill?: boolean;
+  /**
+   * Cap on issues processed per project (for canary runs). Counts every issue
+   * pulled from the delta stream, including ones that turn out unchanged.
+   * Omit for no cap (the normal case).
+   */
+  limit?: number;
 }
 
 /**
@@ -85,7 +98,14 @@ export async function runSync(opts: SyncOptions): Promise<number> {
       // Resolve baseline.
       const prior = await getProjectState(project);
       let from: Date;
-      if (prior?.last_sync_at) {
+      if (opts.backfill) {
+        // Re-pull everything so every mapped issue's description (and comment
+        // bodies) get re-rendered with the current adfToMarkdown.
+        from = new Date(0);
+        logger.warn(
+          `Backfill mode for ${project}: ignoring delta window, re-pulling all issues since epoch.`
+        );
+      } else if (prior?.last_sync_at) {
         from = deltaFrom(prior.last_sync_at, config.sync.overlapMinutes);
       } else if (opts.since) {
         from = new Date(opts.since);
@@ -133,11 +153,13 @@ export async function runSync(opts: SyncOptions): Promise<number> {
       let created = 0;
       let updated = 0;
       let comments = 0;
+      let commentsUpdated = 0;
       let attachments = 0;
       let failed = 0;
       const createdKeys: string[] = [];
       const updatedKeys: string[] = [];
 
+      let processed = 0;
       try {
         for await (const issue of streamChangedIssues(
           jira,
@@ -147,6 +169,13 @@ export async function runSync(opts: SyncOptions): Promise<number> {
           fields,
           opts.batch
         )) {
+          if (opts.limit && processed >= opts.limit) {
+            logger.info(
+              `Reached --limit ${opts.limit} for ${project}; stopping (canary run).`
+            );
+            break;
+          }
+          processed++;
           const ctx = {
             config,
             jiraProject: project,
@@ -161,15 +190,26 @@ export async function runSync(opts: SyncOptions): Promise<number> {
             lookups,
             issue
           });
-          if (r.action === 'created') {
+          // In dry-run, syncIssue returns "skipped" for the no-write preview.
+          // Disambiguate by planeId: present → would UPDATE existing, absent →
+          // would CREATE new. This makes the dry-run counts honest (otherwise a
+          // backfill that touches every issue reports ~0).
+          const effectiveAction =
+            r.action === 'skipped'
+              ? r.planeId
+                ? 'updated'
+                : 'created'
+              : r.action;
+
+          if (effectiveAction === 'created') {
             created++;
             if (createdKeys.length < MAX_HIGHLIGHT_KEYS)
               createdKeys.push(r.jiraKey);
-          } else if (r.action === 'updated') {
+          } else if (effectiveAction === 'updated') {
             updated++;
             if (updatedKeys.length < MAX_HIGHLIGHT_KEYS)
               updatedKeys.push(r.jiraKey);
-          } else if (r.action === 'failed') {
+          } else if (effectiveAction === 'failed') {
             failed++;
             continue;
           }
@@ -187,9 +227,11 @@ export async function runSync(opts: SyncOptions): Promise<number> {
               plane,
               planeProjectId,
               jiraKey: r.jiraKey,
-              planeWorkItemId: planeId
+              planeWorkItemId: planeId,
+              backfill: opts.backfill
             });
             comments += cRes.created;
+            commentsUpdated += cRes.updated;
             failed += cRes.failed;
           } catch (err) {
             logger.warn(`syncComments unexpected error for ${r.jiraKey}:`, err);
@@ -223,6 +265,12 @@ export async function runSync(opts: SyncOptions): Promise<number> {
 
       const status: SyncSummary['status'] = failed > 0 ? 'partial' : 'ok';
       const duration_ms = Date.now() - t0;
+
+      if (opts.backfill) {
+        logger.info(
+          `Backfill ${project}: ${updated} descriptions re-rendered, ${commentsUpdated} comment bodies updated.`
+        );
+      }
 
       // Only advance last_sync_at when NOT dry-run.
       if (!opts.dryRun) {
