@@ -1,3 +1,8 @@
+// Point manifest appends at a throwaway file so this test never pollutes the
+// real state/manifest.jsonl ledger (manifest reads the path lazily).
+process.env.MANIFEST_PATH = '/tmp/test-manifest-issues.jsonl';
+process.env.FAILURES_PATH = '/tmp/test-failures-issues.jsonl';
+
 import { expect, test, beforeEach } from 'bun:test';
 import { syncIssue } from './issues';
 import { loadManifest } from '../state/manifest';

@@ -1,3 +1,7 @@
+// Point manifest appends at a throwaway file (manifest reads the path lazily).
+process.env.MANIFEST_PATH = '/tmp/test-manifest-comments.jsonl';
+process.env.FAILURES_PATH = '/tmp/test-failures-comments.jsonl';
+
 import { expect, test, beforeEach } from 'bun:test';
 import { syncComments } from './comments';
 import { loadManifest } from '../state/manifest';
