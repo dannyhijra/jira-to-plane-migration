@@ -181,7 +181,8 @@ export async function runSync(opts: SyncOptions): Promise<number> {
             jiraProject: project,
             dryRun: opts.dryRun,
             batch: opts.batch,
-            resume: false
+            resume: false,
+            backfill: opts.backfill
           };
           const r = await syncIssue({
             ctx,

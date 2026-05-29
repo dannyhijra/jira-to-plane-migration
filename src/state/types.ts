@@ -1,16 +1,16 @@
-import type { Config } from "../lib/config";
+import type { Config } from '../lib/config';
 
 export type Entity =
-  | "project"
-  | "work_item"
-  | "comment"
-  | "cycle"
-  | "module"
-  | "attachment"
-  | "link"
-  | "reassign";
+  | 'project'
+  | 'work_item'
+  | 'comment'
+  | 'cycle'
+  | 'module'
+  | 'attachment'
+  | 'link'
+  | 'reassign';
 
-export type ManifestStatus = "ok" | "failed" | "skipped";
+export type ManifestStatus = 'ok' | 'failed' | 'skipped';
 
 export interface ManifestEntry {
   /** Unique key from Jira side, e.g. "ENG-123" for issues, "ENG" for projects */
@@ -38,6 +38,12 @@ export interface MigrationContext {
   batch: number;
   limit?: number;
   resume: boolean;
+  /**
+   * Backfill mode: re-render existing items only. MUST NOT create work items —
+   * a missing or non-ok manifest entry is skipped, never created. Prevents the
+   * duplicate-creation failure mode when re-running after partial failures.
+   */
+  backfill?: boolean;
 }
 
 export interface MigrationResult {
