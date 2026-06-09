@@ -1,0 +1,86 @@
+{
+  "form_title": "Legal Request PKS",
+  "form_description": "HIJRA - LEGAL REQUEST PKS",
+  "title_template": "{JENIS PENGIKATAN} – {NAMA NASABAH}",
+  "assignee_field": "ATASAN USER",
+  "priority": "none",
+  "date_mappings": {},
+  "fields": [
+    {
+      "label": "NAMA NASABAH",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Diisi dengan Nama Nasabah",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "JENIS PENGIKATAN",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "Diisi sesuai dengan pilihan",
+      "options": [
+        "PKS",
+        "NDA",
+        "MOU PAYUNG"
+      ],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "RUANG LINGKUP/KESEPAKATAN KERJA SAMA",
+      "n8n_type": "textarea",
+      "required": true,
+      "placeholder": "Diisi Ruang Lingkup/Kesimpulan kesepakatan Perjanjian yang akan dituangkan dalam perjanjian",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "DRAFT PKS (JIKA ADA)",
+      "n8n_type": "text",
+      "required": false,
+      "placeholder": "Mohon di Share Link Google Dok/Ms.W (Jika telah ada draft PKS atau Draft Kesepakatan kerja)",
+      "options": [],
+      "multiselect": false,
+      "is_link": true,
+      "is_assignee": false
+    },
+    {
+      "label": "DOKUMEN LEGALITAS MITRA",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Mohon di Share Link Google Dok/Ms.W (Legalitas Wajib: Akta Pendirian, Akta Perubahan, SK Pengesahan & NPWP)",
+      "options": [],
+      "multiselect": false,
+      "is_link": true,
+      "is_assignee": false
+    },
+    {
+      "label": "ATASAN USER",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": true
+    }
+  ],
+  "manual_flags": [
+    "ATASAN USER is a Jira user-picker (member-snapshot dropdown) — no n8n equivalent; populate/refresh options as people join Plane and map to assignee",
+    "DRAFT PKS (JIKA ADA) and DOKUMEN LEGALITAS MITRA expect Google Doc/Ms.W share links — captured as text URLs in description; Plane create API takes no inline file uploads"
+  ],
+  "slug": "lrp-legal-request",
+  "workflow_name": "LRP · LEGAL REQUEST PKS form → Plane work item",
+  "project_identifier": "LRP",
+  "project_uuid": "ec9b3331-893a-468b-89b2-f8801c97a5af",
+  "workspace_slug": "hijra",
+  "member_map": {
+    "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
+  }
+}

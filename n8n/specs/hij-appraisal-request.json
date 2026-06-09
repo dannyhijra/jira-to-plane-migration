@@ -1,0 +1,104 @@
+{
+  "form_title": "HIJRA-APPRAISAL REQUEST",
+  "form_description": "Jira ProForma intake form for project HIJ (appraisal request). Captures customer name, financing amount, appraisal valuation type, submission document link, valuation object type, optional notes, and the requesting user's superior (ATASAN USER user-picker).",
+  "title_template": "{PENILAIAN APPRAISAL} – {NAMA NASABAH}",
+  "assignee_field": "ATASAN USER",
+  "priority": "none",
+  "date_mappings": {},
+  "fields": [
+    {
+      "label": "NAMA NASABAH",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Diisi Nama Nasabah/Pemilik Jaminan",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "NOMINAL PENGAJUAN PEMBIAYAAN",
+      "n8n_type": "textarea",
+      "required": true,
+      "placeholder": "Diisi dengn nominal Contoh : Rp.XXX.XXX.XXX",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "PENILAIAN APPRAISAL",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "",
+      "options": [
+        "KJPP/EKSTERNAL",
+        "INTERNAL",
+        "PROGRES REPORT"
+      ],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "DOKUMEN PENGAJUAN",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Diisi link Google Drive/Link PDF/Ms.W (Fc. Sertifikat, PBB, IMB/PBG, BPKB)",
+      "options": [],
+      "multiselect": false,
+      "is_link": true,
+      "is_assignee": false
+    },
+    {
+      "label": "OBJEK PENILAIAN",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "Dipilis sesuai pilihan",
+      "options": [
+        "TANAH & BANGUNAN",
+        "TANAH KOSONG",
+        "RUKO/RUKAN",
+        "APARTEMEN",
+        "GUDANG",
+        "KENDARAAN",
+        "BARANG PERSEDIAAN",
+        "Lainnya"
+      ],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "KETERANGAN TAMBAHAN (JIKA ADA)",
+      "n8n_type": "textarea",
+      "required": false,
+      "placeholder": "Diisi keterangan tambahan jika ada",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "ATASAN USER",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "Diisi Atasan User",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": true
+    }
+  ],
+  "manual_flags": [
+    "ATASAN USER is a Jira user-picker (person field) with no n8n equivalent; rebuild as a member-snapshot dropdown sourced from Plane project members and refresh as people join — maps to the work-item assignee"
+  ],
+  "slug": "hij-appraisal-request",
+  "workflow_name": "HIJ · APPRAISAL REQUEST form → Plane work item",
+  "project_identifier": "HIJ",
+  "project_uuid": "e89c3f8b-5603-41af-9187-11638d1f65ce",
+  "workspace_slug": "hijra",
+  "member_map": {
+    "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
+  }
+}

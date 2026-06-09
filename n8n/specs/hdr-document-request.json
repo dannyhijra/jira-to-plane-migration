@@ -1,0 +1,51 @@
+{
+  "form_title": "HIJRA - DOCUMENT REQUEST",
+  "form_description": "Project HIJRA-DOCUMENT REQUEST intake form. Captures a document request: the document being requested (PERMOHONAN DOKUMEN), the detailed document need (KEBUTUHAN DOKUMEN), and the user's superior (ATASAN USER).",
+  "title_template": "{PERMOHONAN DOKUMEN}",
+  "assignee_field": "ATASAN USER",
+  "priority": "none",
+  "date_mappings": {},
+  "fields": [
+    {
+      "label": "PERMOHONAN DOKUMEN",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "KEBUTUHAN DOKUMEN",
+      "n8n_type": "textarea",
+      "required": true,
+      "placeholder": "We support markdown! Try **bold**, `inline code`, or ``` for code blocks.",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "ATASAN USER",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": true
+    }
+  ],
+  "manual_flags": [
+    "ATASAN USER is a Jira user-picker (member-snapshot dropdown); n8n has no user-picker equivalent. Populate/refresh options as people join Plane, and map selection to a Plane assignee via the member map."
+  ],
+  "slug": "hdr-document-request",
+  "workflow_name": "HDR · DOCUMENT REQUEST form → Plane work item",
+  "project_identifier": "HDR",
+  "project_uuid": "a9f5d28f-72e0-4e3c-af57-d8357c22c7cf",
+  "workspace_slug": "hijra",
+  "member_map": {
+    "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
+  }
+}

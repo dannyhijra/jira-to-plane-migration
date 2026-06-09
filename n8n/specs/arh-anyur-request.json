@@ -1,0 +1,76 @@
+{
+  "form_title": "HIJRA - ANYUR REQUEST",
+  "form_description": "Intake form for ARH Anyur requests. Captures customer name, the type of Anyur need (Pembiayaan/Pendanaan/Kerja Sama), legality document links, additional notes, and the supervising user.",
+  "title_template": "{KEPERLUAN ANYUR} – {NAMA NASABAH}",
+  "assignee_field": "ATASAN USER",
+  "priority": "none",
+  "date_mappings": {},
+  "fields": [
+    {
+      "label": "NAMA NASABAH",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Diisi dengan Nama Nasabah",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "KEPERLUAN ANYUR",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "Diisi sesuai dengan pilihan",
+      "options": [
+        "PEMBIAYAAN",
+        "PENDANAAN",
+        "KERJA SAMA"
+      ],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "DOKUMEN LEGALITAS NASABAH",
+      "n8n_type": "textarea",
+      "required": true,
+      "placeholder": "Diisi link Google Drive/Link PDF/Ms.W (Dokumen : Akta Pendirian & Perubahan serta SK Kemenkumham, NPWP Perusahaan, KTP Pengurus, NIB, Perizinan Perusahaan, dokumen lainnya jika ada dan diperlukan)",
+      "options": [],
+      "multiselect": false,
+      "is_link": true,
+      "is_assignee": false
+    },
+    {
+      "label": "KETERANGAN TAMBAHAN",
+      "n8n_type": "textarea",
+      "required": true,
+      "placeholder": "Diisi jika ada keterangan tambahan",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "ATASAN USER",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "Unassigned",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": true
+    }
+  ],
+  "manual_flags": [
+    "ATASAN USER is a Jira user-picker (person field) with no n8n equivalent; build as a member-snapshot dropdown and refresh as people join Plane. Maps to Plane assignees via member-email lookup.",
+    "DOKUMEN LEGALITAS NASABAH expects a Google Drive / PDF / Ms.W link (treated as text/link), not an inline file upload — Plane create API takes no inline files."
+  ],
+  "slug": "arh-anyur-request",
+  "workflow_name": "ARH · ANYUR REQUEST form → Plane work item",
+  "project_identifier": "ARH",
+  "project_uuid": "ef603ac8-09d4-413f-ab6e-b9aea65af65a",
+  "workspace_slug": "hijra",
+  "member_map": {
+    "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
+  }
+}
