@@ -17,3 +17,6 @@ state/.sync.lock
 config/projects.yaml
 config/users.yaml
 config/mappings.yaml
+
+# Playwright MCP session artifacts
+.playwright-mcp/

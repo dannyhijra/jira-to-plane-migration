@@ -52,6 +52,7 @@ The API key owner ("migration bot") only ever appears as `created_by` and commen
 | `/migrate-status [PROJECT]`         | Quick progress and failure summary from manifest           | Anytime    |
 | `/migrate-sync [PROJECT]`           | Incremental sync wrapper (calls `bun run migrate sync`)    | Post-cut   |
 | `/migrate-sync-status [PROJECT]`    | Read `state/sync-state.json` and report last-run stats     | Anytime    |
+| `/migrate-form <KEY> <dir>`         | Jira form screenshots → importable n8n workflow (creates Plane work item on submit) | Post-cut |
 
 ## Skills under `.claude/skills/`
 
