@@ -3,7 +3,7 @@
   "form_description": "HIJRA - LEGAL REQUEST PKS",
   "title_template": "{NAMA NASABAH}",
   "assignee_field": "ATASAN USER",
-  "priority": "none",
+  "priority": "medium",
   "date_mappings": {},
   "fields": [
     {
@@ -82,5 +82,26 @@
   "workspace_slug": "hijra",
   "member_map": {
     "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
+  },
+  "state_id": "b32fa9bb-741e-4853-97c8-9b6fd5c9c2f5",
+  "state_name": "PERMINTAAN MASUK",
+  "auto_label_ids": [
+    "be8e2225-d30f-4c4e-b6a0-9a02a64f8201",
+    "b69f1139-4b7a-4ab8-8e31-675c0f4af4c2"
+  ],
+  "auto_label_names": [
+    "business-form",
+    "business-form-62"
+  ],
+  "module_field": "JENIS PENGIKATAN",
+  "module_map": {
+    "PKS": "4319d38a-0aa0-4920-a952-ca21c4308440",
+    "NDA": "ffc44544-47f7-4917-864e-fb1a62173c47",
+    "MOU PAYUNG": "4f9b2382-1f0c-42a0-ab30-f339fddcd1d1"
+  },
+  "due_in_days": 3,
+  "choice_label_field": "JENIS PENGIKATAN",
+  "choice_label_map": {
+    "NDA": "fc7d1384-d5dc-4a19-80d9-a4644a2a8ccf"
   }
 }

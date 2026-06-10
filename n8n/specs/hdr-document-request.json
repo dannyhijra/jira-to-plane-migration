@@ -3,7 +3,7 @@
   "form_description": "Project HIJRA-DOCUMENT REQUEST intake form. Captures a document request: the document being requested (PERMOHONAN DOKUMEN), the detailed document need (KEBUTUHAN DOKUMEN), and the user's superior (ATASAN USER).",
   "title_template": "{PERMOHONAN DOKUMEN}",
   "assignee_field": "ATASAN USER",
-  "priority": "none",
+  "priority": "medium",
   "date_mappings": {},
   "fields": [
     {
@@ -47,5 +47,16 @@
   "workspace_slug": "hijra",
   "member_map": {
     "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
-  }
+  },
+  "state_id": "55089e5e-cf98-46c7-ae4d-f7de8e4d27ff",
+  "state_name": "PERMINTAAN MASUK",
+  "auto_label_ids": [
+    "99254ab2-50d7-4c9b-9299-7c6981944cac",
+    "3b8f9a24-4ec8-43f5-aba3-39cc43ac3b3e"
+  ],
+  "auto_label_names": [
+    "business-form",
+    "business-form-258"
+  ],
+  "due_in_days": 3
 }

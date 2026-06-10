@@ -57,11 +57,14 @@ Header: `X-API-Key: {YOUR_PLANE_API_KEY}` + `Content-Type: application/json`.
 | Plane field | Source |
 |---|---|
 | `name` (required) | a composed title — **ask the user for the format** (e.g. `SP3 {PILIHAN} – {NAMA NASABAH}`) |
-| `description_html` | assembled HTML of the remaining fields (links as `<a>`, an audit footer); also where any unresolved assignee / dropped field is captured |
+| `description_html` | one `<p><strong>Field:</strong> …</p>` row per field, links rendered clickable (`<a href>`); builtin-date fields excluded; unresolved assignee captured here |
 | `priority` | `urgent\|high\|medium\|low\|none`; if no priority field, `"none"` |
 | `assignees` | `[uuid]` from the user-picker `MEMBER_MAP` (hit → set; miss → leave empty AND capture the chosen label in `description_html`, per migration-user-strategy) |
-| `labels` | omit unless the user provides a label-UUID map; otherwise capture the choice in `description_html` |
+| `labels` | always-on form labels (`business-form` + `business-form-<jiraFormId>`) via spec `auto_label_ids`; plus optional choice-driven labels via `choice_label_field` + `choice_label_map` ({option → label UUID}, e.g. LRP `JENIS PENGIKATAN=NDA` → `NDA` label) |
+| `state` | pin the intake state UUID (`state_id`) — never rely on the project default (some default to a completed state) |
 | `target_date` / `start_date` | `YYYY-MM-DD` from date fields |
+
+**Modules** (Plane create takes no module — needs a second call): if a project has modules whose names match a dropdown's options (e.g. ARH `KEPERLUAN ANYUR` → modules PEMBIAYAAN/PENDANAAN/KERJA SAMA), set spec `module_field` + `module_map` ({option → module UUID}). The builder adds an "Add to module" HTTP node (`POST .../modules/{id}/module-issues/` body `{issues:[id]}`, continue-on-fail) after create. Fetch labels/modules/states per project via the REST API with `X-API-Key` + the `CF_Authorization` cookie (the MCP often 500s on Cloudflare).
 
 Do not auto-resolve emails → UUIDs without a member map. The `MEMBER_MAP` (built from live Plane members) IS that map for the user-picker case.
 

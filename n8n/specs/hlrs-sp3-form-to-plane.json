@@ -7,7 +7,7 @@
   "project_uuid": "6328c439-cf0b-4e44-b779-73c82201fa29",
   "workspace_slug": "hijra",
   "title_template": "{NAMA NASABAH}",
-  "priority": "none",
+  "priority": "medium",
   "assignee_field": "ATASAN USER",
   "member_map": {
     "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
@@ -72,5 +72,16 @@
   ],
   "manual_flags": [
     "ATASAN USER is a Jira user-picker rebuilt as a member-snapshot dropdown; refresh options + MEMBER_MAP as people join Plane"
-  ]
+  ],
+  "state_id": "7a970a92-e428-4bdb-818a-fc5e61827116",
+  "state_name": "PERMINTAAN MASUK",
+  "auto_label_ids": [
+    "59239529-4e11-4ef0-88f3-402ce0d2544f",
+    "05859761-605f-4ccb-833b-5d5f29add690"
+  ],
+  "auto_label_names": [
+    "business-form",
+    "business-form-63"
+  ],
+  "due_in_days": 3
 }

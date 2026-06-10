@@ -3,7 +3,7 @@
   "form_description": "Jira ProForma intake form for project HIJ (appraisal request). Captures customer name, financing amount, appraisal valuation type, submission document link, valuation object type, optional notes, and the requesting user's superior (ATASAN USER user-picker).",
   "title_template": "{NAMA NASABAH}",
   "assignee_field": "ATASAN USER",
-  "priority": "none",
+  "priority": "medium",
   "date_mappings": {},
   "fields": [
     {
@@ -100,5 +100,16 @@
   "workspace_slug": "hijra",
   "member_map": {
     "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
-  }
+  },
+  "state_id": "3548318b-6eb9-496d-b86b-d249c61015d6",
+  "state_name": "PERMINTAAN MASUK",
+  "auto_label_ids": [
+    "00aaceee-5fbe-45b4-b447-ada8b5562730",
+    "d5b7ef8f-44bb-4155-9725-29110abbb80e"
+  ],
+  "auto_label_names": [
+    "business-form",
+    "business-form-93"
+  ],
+  "due_in_days": 3
 }

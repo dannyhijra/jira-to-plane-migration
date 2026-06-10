@@ -53,7 +53,14 @@ const ASSIGNEE_FIELD = __ASSIGNEE_FIELD__;  // "" or the user-picker field label
 const MEMBER_MAP     = __MEMBER_MAP__;      // friendly label -> Plane member UUID
 const TITLE_TEMPLATE = __TITLE_TEMPLATE__;  // uses {FIELD LABEL} tokens
 const PRIORITY       = __PRIORITY__;        // urgent|high|medium|low|none
-const DATE_MAPPINGS  = __DATE_MAPPINGS__;   // {field label: "target_date"|"start_date"}
+const STATE          = __STATE__;           // Plane state UUID (intake); "" -> project default
+const LABELS             = __LABELS__;             // label UUIDs attached to every submission
+const CHOICE_LABEL_FIELD = __CHOICE_LABEL_FIELD__; // field whose option adds a label ("" = none)
+const CHOICE_LABEL_MAP   = __CHOICE_LABEL_MAP__;   // {option text: label UUID}
+const MODULE_FIELD       = __MODULE_FIELD__;       // field whose option maps to a module ("" = none)
+const MODULE_MAP         = __MODULE_MAP__;         // {option text: module UUID}
+const DUE_IN_DAYS        = __DUE_IN_DAYS__;         // -1 disables auto dates
+const DATE_MAPPINGS      = __DATE_MAPPINGS__;       // {field label: "target_date"|"start_date"}
 
 const get = (l) => (f[l] == null ? '' : String(f[l])).trim();
 const esc = (s) => String(s == null ? '' : s)
@@ -77,7 +84,7 @@ if (ASSIGNEE_FIELD) {
   else if (lbl) unresolvedAssignee = lbl;
 }
 
-// --- Description (HTML) — audit trail of every field ---
+// --- Description (HTML) — one row per field, links clickable ---
 const rows = [];
 for (const fld of FIELDS) {
   if (fld.label === ASSIGNEE_FIELD) continue;     // shown via assignee handling
@@ -92,6 +99,13 @@ if (unresolvedAssignee) {
 }
 const description_html = rows.join('\n');
 
+// --- Labels: always-on + choice-driven ---
+let labels = LABELS.slice();
+if (CHOICE_LABEL_FIELD) {
+  const id = CHOICE_LABEL_MAP[get(CHOICE_LABEL_FIELD)];
+  if (id && labels.indexOf(id) < 0) labels.push(id);
+}
+
 // --- Plane create body ---
 const body = {
   name: name,
@@ -99,12 +113,31 @@ const body = {
   priority: PRIORITY,
   assignees: assignees,
 };
+if (STATE) body.state = STATE;             // pin intake state (else Plane uses project default)
+if (labels.length) body.labels = labels;
+
+// Auto dates: start = today, due = today + DUE_IN_DAYS. Computed in Asia/Jakarta
+// (UTC+7, no DST) so "today" is correct regardless of the n8n server timezone.
+if (DUE_IN_DAYS >= 0) {
+  const _pad = (n) => String(n).padStart(2, '0');
+  const _ymd = (d) => d.getUTCFullYear() + '-' + _pad(d.getUTCMonth() + 1) + '-' + _pad(d.getUTCDate());
+  const _jkt = new Date(Date.now() + 7 * 3600 * 1000);
+  body.start_date = _ymd(_jkt);
+  body.target_date = _ymd(new Date(_jkt.getTime() + DUE_IN_DAYS * 86400000));
+}
+
+// Explicit form date fields (if any) override the auto dates.
 for (const lbl of Object.keys(DATE_MAPPINGS)) {
   const v = get(lbl);
   if (v) body[DATE_MAPPINGS[lbl]] = v;   // n8n date field yields YYYY-MM-DD
 }
 
-return { body: body };
+// Module is set via a second call (Plane create takes no module); resolve its UUID
+// from the chosen category. Empty -> the "Add to module" node (if any) is a no-op.
+let module_id = '';
+if (MODULE_FIELD) module_id = MODULE_MAP[get(MODULE_FIELD)] || '';
+
+return { body: body, module_id: module_id };
 """
 
 
@@ -119,6 +152,13 @@ def build_code_js(spec, member_map):
         "__MEMBER_MAP__": json.dumps(member_map, ensure_ascii=False),
         "__TITLE_TEMPLATE__": json.dumps(spec["title_template"], ensure_ascii=False),
         "__PRIORITY__": json.dumps(spec.get("priority") or "none", ensure_ascii=False),
+        "__STATE__": json.dumps(spec.get("state_id") or "", ensure_ascii=False),
+        "__DUE_IN_DAYS__": json.dumps(3 if spec.get("due_in_days") is None else spec["due_in_days"]),
+        "__LABELS__": json.dumps(spec.get("auto_label_ids") or [], ensure_ascii=False),
+        "__CHOICE_LABEL_FIELD__": json.dumps(spec.get("choice_label_field") or "", ensure_ascii=False),
+        "__CHOICE_LABEL_MAP__": json.dumps(spec.get("choice_label_map") or {}, ensure_ascii=False),
+        "__MODULE_FIELD__": json.dumps(spec.get("module_field") or "", ensure_ascii=False),
+        "__MODULE_MAP__": json.dumps(spec.get("module_map") or {}, ensure_ascii=False),
         "__DATE_MAPPINGS__": json.dumps(spec.get("date_mappings") or {}, ensure_ascii=False),
     }
     js = CODE_JS_TEMPLATE
@@ -163,16 +203,39 @@ def build_workflow(spec):
     code_js = build_code_js(spec, member_map)
     form_fields = build_form_fields(spec, member_map)
 
+    # Reference the create node explicitly so the message works whether or not an
+    # "Add to module" node sits between create and the completion screen.
     completion_message = (
-        "=Created " + ident + "-{{ $json.sequence_id }} · "
-        "https://YOUR_PLANE_BASE/" + ws + "/projects/PLANE_TARGET_PROJECT_ID/issues/{{ $json.id }}"
+        "=Created " + ident
+        + "-{{ $('Create Plane work item').first().json.sequence_id }} · "
+        "https://YOUR_PLANE_BASE/" + ws
+        + "/projects/PLANE_TARGET_PROJECT_ID/issues/{{ $('Create Plane work item').first().json.id }}"
     )
+
+    has_module = bool(spec.get("module_field") and spec.get("module_map"))
 
     members_lines = "".join(
         "- `%s` → `%s`\n" % (label, uid) for label, uid in member_map.items()
     ) or "- (none yet)\n"
     flags = spec.get("manual_flags") or []
     flags_md = ("\n### Manual / needs attention\n" + "".join("- %s\n" % x for x in flags)) if flags else ""
+    state_md = ""
+    if spec.get("state_id"):
+        state_md = "- new items created in state **%s** (`%s`)\n" % (
+            spec.get("state_name") or "?", spec["state_id"])
+    labels_md = ""
+    if spec.get("auto_label_ids"):
+        names = spec.get("auto_label_names") or []
+        labels_md = "- auto-labels: %s\n" % (", ".join(names) if names else "%d label(s)" % len(spec["auto_label_ids"]))
+    module_md = ""
+    if has_module:
+        module_md = (
+            "- module: the chosen **%s** is matched by name to a module (via the "
+            "'Add to module' node, set to continue-on-fail)\n" % spec["module_field"])
+    choice_label_md = ""
+    if spec.get("choice_label_field") and spec.get("choice_label_map"):
+        choice_label_md = "- choice-label: certain **%s** options also add a matching label (%s)\n" % (
+            spec["choice_label_field"], ", ".join(spec["choice_label_map"].keys()))
 
     sticky = (
         "## " + ident + " form → Plane\n"
@@ -180,7 +243,8 @@ def build_workflow(spec):
         "- **URL host** `YOUR_PLANE_BASE`\n"
         "- **`PLANE_TARGET_PROJECT_ID`** → `" + proj_uuid + "` (" + ident + ")\n"
         "- **`YOUR_PLANE_API_KEY`** → Plane token (X-API-Key)\n"
-        "- workspace slug = `" + ws + "`\n\n"
+        "- workspace slug = `" + ws + "`\n"
+        + state_md + labels_md + choice_label_md + module_md + "\n"
         "### Assignee dropdown (snapshot of Plane members)\n"
         "Dropdown shows friendly labels; the Code node's MEMBER_MAP resolves the choice\n"
         "to a member UUID (hit → assignee; miss → captured in the description). Add BOTH a\n"
@@ -192,7 +256,36 @@ def build_workflow(spec):
     form_trigger = nid()
     code_id = nid()
     http_id = nid()
+    module_node_id = nid()
     completion_id = nid()
+
+    ending_x = 900 if has_module else 720
+    module_node = {
+        "parameters": {
+            "method": "POST",
+            "url": "https://YOUR_PLANE_BASE/api/v1/workspaces/" + ws
+            + "/projects/PLANE_TARGET_PROJECT_ID/modules/"
+            + "{{ $('Map → Plane payload').first().json.module_id }}/module-issues/",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "X-API-Key", "value": "YOUR_PLANE_API_KEY"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ]
+            },
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": '={{ { "issues": [$json.id] } }}',
+            "options": {},
+        },
+        "id": module_node_id,
+        "name": "Add to module",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [690, 0],
+        # don't fail the whole submission if the module link can't be set
+        "onError": "continueRegularOutput",
+    }
 
     workflow = {
         "name": spec.get("workflow_name") or (ident + " form → Plane work item"),
@@ -257,7 +350,7 @@ def build_workflow(spec):
                 "name": "Form ending",
                 "type": "n8n-nodes-base.form",
                 "typeVersion": 1,
-                "position": [720, 0],
+                "position": [ending_x, 0],
             },
             {
                 "parameters": {"content": sticky, "height": 360, "width": 480},
@@ -271,13 +364,24 @@ def build_workflow(spec):
         "connections": {
             "On form submission": {"main": [[{"node": "Map → Plane payload", "type": "main", "index": 0}]]},
             "Map → Plane payload": {"main": [[{"node": "Create Plane work item", "type": "main", "index": 0}]]},
-            "Create Plane work item": {"main": [[{"node": "Form ending", "type": "main", "index": 0}]]},
         },
         "active": False,
         "settings": {"executionOrder": "v1"},
         "pinData": {},
         "meta": {"templateId": spec.get("slug") or "form-to-plane"},
     }
+
+    # Create → (Add to module →) Form ending
+    if has_module:
+        workflow["nodes"].append(module_node)
+        workflow["connections"]["Create Plane work item"] = {
+            "main": [[{"node": "Add to module", "type": "main", "index": 0}]]}
+        workflow["connections"]["Add to module"] = {
+            "main": [[{"node": "Form ending", "type": "main", "index": 0}]]}
+    else:
+        workflow["connections"]["Create Plane work item"] = {
+            "main": [[{"node": "Form ending", "type": "main", "index": 0}]]}
+
     return workflow
 
 
