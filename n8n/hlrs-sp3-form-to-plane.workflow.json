@@ -62,7 +62,7 @@
         },
         "options": {}
       },
-      "id": "8bb9b472-92f3-499e-a824-74fea21e71a6",
+      "id": "01058fd1-b9bc-41ad-afd3-2d25436256d8",
       "name": "On form submission",
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.2,
@@ -70,7 +70,7 @@
         0,
         0
       ],
-      "webhookId": "ed5ca2f3-61a7-4e68-a849-09060b45876a"
+      "webhookId": "94b02d48-05a5-4858-acc4-f356ffc445c3"
     },
     {
       "parameters": {
@@ -78,7 +78,7 @@
         "language": "javaScript",
         "jsCode": "// Map HIJRA-LEGAL REVIEW SP3 form submission -> Plane work item payload.\n// Plane create body fields: name (required), description_html, priority,\n// assignees[] (member UUIDs), labels[] (label UUIDs), target_date/start_date.\n//\n// Field keys below are the EXACT Form Trigger labels (Indonesian, verbatim).\n\nconst f = $json;\n\nconst namaNasabah  = (f['NAMA NASABAH'] || '').trim();\nconst muap         = (f['MUAP, RISK REVIEW, KOMITE/MOM (SHARE GOOGLE DRIVE)'] || '').trim();\nconst draftSp3     = (f['DRAFT SP3'] || '').trim();\nconst pilihanSp3   = (f['PILIHAN SP3'] || '').trim();\nconst atasanLabel  = (f['ATASAN USER'] || '').trim();\n\n// ATASAN USER -> Plane assignee.\n// Jira's user picker has no n8n equivalent, so ATASAN USER is a dropdown of friendly\n// labels. This explicit map (snapshot of Plane HLRS members) turns the chosen label\n// into a member UUID. MANUAL: add an entry here whenever the dropdown gains an option.\n// Strategy (per CLAUDE.md): hit -> set assignees; miss -> leave empty AND capture the\n// chosen supervisor in the description so nothing is lost.\nconst MEMBER_MAP = {\n  'Danny Dwi Cahyono (dcahyono@hijra.id)': 'f799f9fe-ed67-427c-8e51-199de6cd54a6',\n};\nconst atasanUserUuid = MEMBER_MAP[atasanLabel] || '';\n\n// --- Title ---\nconst name = ('SP3 ' + pilihanSp3 + ' – ' + namaNasabah).trim();\n\n// --- Description (HTML) — audit trail of links + selection ---\nconst esc = (s) => String(s == null ? '' : s)\n  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst link = (url) => {\n  const u = String(url || '').trim();\n  if (!u) return '<em>(kosong)</em>';\n  return /^https?:\\/\\//i.test(u) ? ('<a href=\"' + esc(u) + '\">' + esc(u) + '</a>') : esc(u);\n};\nconst parts = [\n  '<p><strong>Pilihan SP3:</strong> ' + esc(pilihanSp3) + '</p>',\n  '<p><strong>MUAP, Risk Review, Komite/MOM (Google Drive):</strong><br/>' + link(muap) + '</p>',\n  '<p><strong>Draft SP3:</strong><br/>' + link(draftSp3) + '</p>',\n];\n// --- Assignees ---  (hit -> set; miss -> capture supervisor in description)\nconst assignees = atasanUserUuid ? [atasanUserUuid] : [];\nif (atasanLabel && !atasanUserUuid) {\n  parts.push('<p><strong>Atasan User (belum terpetakan ke member Plane):</strong> ' + esc(atasanLabel) + '</p>');\n}\nparts.push('<hr/>');\nparts.push('<p><em>Dibuat via n8n form (HIJRA-LEGAL REVIEW SP3).</em></p>');\nconst description_html = parts.join('\\n');\n\n// --- Plane create body ---\nconst body = {\n  name: name,\n  description_html: description_html,\n  priority: 'none',            // form has no priority field\n  assignees: assignees,\n  // labels: [],               // MANUAL: no label-UUID map provided; PILIHAN SP3\n  //                           //         is captured in the description instead.\n  // target_date: null,        // MANUAL: form has no date field.\n};\n\n// Pass-through for the completion screen / debugging.\nreturn { body: body, _meta: { pilihanSp3: pilihanSp3, namaNasabah: namaNasabah } };\n"
       },
-      "id": "4c28a8bf-db98-4720-9607-481289925dca",
+      "id": "f83a9fb4-eab1-47d9-a36b-9900ef9b09ea",
       "name": "Map → Plane payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -90,7 +90,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://YOUR_PLANE_BASE/api/v1/workspaces/hijra/projects/PLANE_TARGET_PROJECT_ID/work-items/",
+        "url": "https://YOUR_PLANE_BASE/api/v1/workspaces/hijra/projects/PLANE_TARGET_PROJECT_ID/issues/",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -109,7 +109,7 @@
         "jsonBody": "={{ $json.body }}",
         "options": {}
       },
-      "id": "6dc63d9b-d732-462f-9d2b-a35e6a9c8e62",
+      "id": "e0abd218-52a8-4bf1-abd7-7f0635ccf126",
       "name": "Create Plane work item",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -125,7 +125,7 @@
         "completionMessage": "=Created HLRS-{{ $json.sequence_id }} · https://YOUR_PLANE_BASE/hijra/projects/PLANE_TARGET_PROJECT_ID/issues/{{ $json.id }}",
         "options": {}
       },
-      "id": "333fe7fb-66fe-4f75-a589-a67c5d99c4af",
+      "id": "4cfe4435-4f6d-4ea0-857e-2d8989baef45",
       "name": "Form ending",
       "type": "n8n-nodes-base.form",
       "typeVersion": 1,
@@ -140,7 +140,7 @@
         "height": 320,
         "width": 460
       },
-      "id": "595d47cf-6126-4563-a853-f2de76843342",
+      "id": "b225f27c-f5fd-4ee4-a850-369e8fc2fbd0",
       "name": "READ ME — placeholders",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,

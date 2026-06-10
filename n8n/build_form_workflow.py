@@ -229,7 +229,7 @@ def build_workflow(spec):
                 "parameters": {
                     "method": "POST",
                     "url": "https://YOUR_PLANE_BASE/api/v1/workspaces/" + ws
-                    + "/projects/PLANE_TARGET_PROJECT_ID/work-items/",
+                    + "/projects/PLANE_TARGET_PROJECT_ID/issues/",
                     "sendHeaders": True,
                     "headerParameters": {
                         "parameters": [

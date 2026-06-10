@@ -51,7 +51,7 @@ n8n form dropdown options are a single string used as BOTH label and submitted v
 
 ## Plane create-work-item payload conventions
 
-Endpoint (trailing slash required): `POST {YOUR_PLANE_BASE}/api/v1/workspaces/hijra/projects/{PLANE_TARGET_PROJECT_ID}/work-items/`
+Endpoint (trailing slash required): `POST {YOUR_PLANE_BASE}/api/v1/workspaces/hijra/projects/{PLANE_TARGET_PROJECT_ID}/issues/` — confirmed against `src/clients/plane.ts`. NOTE: on this self-hosted Plane the path is `/issues/`, NOT `/work-items/` (the latter 404s).
 Header: `X-API-Key: {YOUR_PLANE_API_KEY}` + `Content-Type: application/json`.
 
 | Plane field | Source |

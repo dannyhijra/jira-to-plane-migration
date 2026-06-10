@@ -182,7 +182,7 @@ workflow = {
         {
             "parameters": {
                 "method": "POST",
-                "url": "https://YOUR_PLANE_BASE/api/v1/workspaces/hijra/projects/PLANE_TARGET_PROJECT_ID/work-items/",
+                "url": "https://YOUR_PLANE_BASE/api/v1/workspaces/hijra/projects/PLANE_TARGET_PROJECT_ID/issues/",
                 "sendHeaders": True,
                 "headerParameters": {
                     "parameters": [
