@@ -90,8 +90,6 @@ if (unresolvedAssignee) {
   rows.push('<p><strong>' + esc(ASSIGNEE_FIELD)
     + ' (belum terpetakan ke member Plane):</strong> ' + esc(unresolvedAssignee) + '</p>');
 }
-rows.push('<hr/>');
-rows.push('<p><em>Dibuat via n8n form.</em></p>');
 const description_html = rows.join('\n');
 
 // --- Plane create body ---

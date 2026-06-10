@@ -83,6 +83,6 @@ Do not auto-resolve emails → UUIDs without a member map. The `MEMBER_MAP` (bui
 
 Decode HTML entities (`&amp;` → `&`, via `html.unescape`) in labels/options/placeholders before writing the spec — vision extraction tends to HTML-encode `&`.
 
-Worked reference: `n8n/build_hlrs_sp3_workflow.py` is the original bespoke HLRS builder (kept for reference); all new forms use the generic builder + a spec under `n8n/specs/`.
+Worked references: every form is spec-driven — see `n8n/specs/*.json` (e.g. `hlrs-sp3-form-to-plane.json`). Conventions: title_template is the single primary/identifying field directly (e.g. `{NAMA NASABAH}`), NOT a `category – name` composite; category/choice fields land in the description; no tool-attribution footer in the description.
 
 Related: [migration-user-strategy](../migration-user-strategy/SKILL.md) (assignee/author capture rules), CLAUDE.md (MCP defaults, Plane payload don'ts).

@@ -1,7 +1,7 @@
 {
   "form_title": "Legal Request PKS",
   "form_description": "HIJRA - LEGAL REQUEST PKS",
-  "title_template": "{JENIS PENGIKATAN} – {NAMA NASABAH}",
+  "title_template": "{NAMA NASABAH}",
   "assignee_field": "ATASAN USER",
   "priority": "none",
   "date_mappings": {},

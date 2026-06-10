@@ -1,7 +1,7 @@
 {
   "form_title": "HIJRA - ANYUR REQUEST",
   "form_description": "Intake form for ARH Anyur requests. Captures customer name, the type of Anyur need (Pembiayaan/Pendanaan/Kerja Sama), legality document links, additional notes, and the supervising user.",
-  "title_template": "{KEPERLUAN ANYUR} – {NAMA NASABAH}",
+  "title_template": "{NAMA NASABAH}",
   "assignee_field": "ATASAN USER",
   "priority": "none",
   "date_mappings": {},

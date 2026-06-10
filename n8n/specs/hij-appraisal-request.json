@@ -1,7 +1,7 @@
 {
   "form_title": "HIJRA-APPRAISAL REQUEST",
   "form_description": "Jira ProForma intake form for project HIJ (appraisal request). Captures customer name, financing amount, appraisal valuation type, submission document link, valuation object type, optional notes, and the requesting user's superior (ATASAN USER user-picker).",
-  "title_template": "{PENILAIAN APPRAISAL} – {NAMA NASABAH}",
+  "title_template": "{NAMA NASABAH}",
   "assignee_field": "ATASAN USER",
   "priority": "none",
   "date_mappings": {},

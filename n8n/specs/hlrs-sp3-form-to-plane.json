@@ -1,0 +1,76 @@
+{
+  "slug": "hlrs-sp3-form-to-plane",
+  "workflow_name": "HLRS · LEGAL REVIEW SP3 form → Plane work item",
+  "form_title": "HIJRA-LEGAL REVIEW SP3",
+  "form_description": "Form permintaan Legal Review SP3.",
+  "project_identifier": "HLRS",
+  "project_uuid": "6328c439-cf0b-4e44-b779-73c82201fa29",
+  "workspace_slug": "hijra",
+  "title_template": "{NAMA NASABAH}",
+  "priority": "none",
+  "assignee_field": "ATASAN USER",
+  "member_map": {
+    "Danny Dwi Cahyono (dcahyono@hijra.id)": "f799f9fe-ed67-427c-8e51-199de6cd54a6"
+  },
+  "date_mappings": {},
+  "fields": [
+    {
+      "label": "NAMA NASABAH",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Diisi dengan Nama Nasabah",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "MUAP, RISK REVIEW, KOMITE/MOM (SHARE GOOGLE DRIVE)",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Mohon di share Link dokumen yang telah final termasuk dokumen nasabah dan jaminan yang diperlukan",
+      "options": [],
+      "multiselect": false,
+      "is_link": true,
+      "is_assignee": false
+    },
+    {
+      "label": "DRAFT SP3",
+      "n8n_type": "text",
+      "required": true,
+      "placeholder": "Mohon Share Link Dokumen Draft SP3 (Google Dok/Ms.W)",
+      "options": [],
+      "multiselect": false,
+      "is_link": true,
+      "is_assignee": false
+    },
+    {
+      "label": "PILIHAN SP3",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "",
+      "options": [
+        "PLAFOND",
+        "ONE SHOOT",
+        "REALISASI",
+        "RESTRUKTUR/ADDENDUM"
+      ],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": false
+    },
+    {
+      "label": "ATASAN USER",
+      "n8n_type": "dropdown",
+      "required": true,
+      "placeholder": "",
+      "options": [],
+      "multiselect": false,
+      "is_link": false,
+      "is_assignee": true
+    }
+  ],
+  "manual_flags": [
+    "ATASAN USER is a Jira user-picker rebuilt as a member-snapshot dropdown; refresh options + MEMBER_MAP as people join Plane"
+  ]
+}
