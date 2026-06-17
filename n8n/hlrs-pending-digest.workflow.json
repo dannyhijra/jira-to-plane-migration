@@ -98,7 +98,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "legalhijra@hijra.id",
+        "fromEmail": "planebot@hijra.id",
         "toEmail": "={{ $json.to }}",
         "subject": "={{ $json.subject }}",
         "emailFormat": "html",
@@ -116,7 +116,7 @@
     },
     {
       "parameters": {
-        "content": "## HLRS — Daily Pending Digest\nFill the PLACEHOLDERS before enabling:\n- **host** `YOUR_PLANE_BASE` → both HTTP node URLs and Code `WEB_BASE`\n- **`YOUR_PLANE_API_KEY`** → Plane token (X-API-Key) in both HTTP nodes\n- workspace slug = `hijra`, project id = `6328c439-cf0b-4e44-b779-73c82201fa29` — already hardcoded\n\n### Send Email (SMTP) node\nAttach an **SMTP credential**. `From` is set to **legalhijra@hijra.id** in the node (editable). Make sure the SMTP server/account is allowed to send as that address.\n\n### Fetch work items\nSingle `GET /issues/?per_page=1000&expand=assignees,state` — this instance returns a whole project in one page (verified: largest here is HLRS=404), so no pagination is needed. `/work-items/` 404s here, so `/issues/` is used. If a project ever exceeds 1000 issues the Build node warns and the digest shows a banner — re-add cursor pagination then.\n\n### Schedule\nDaily at **11:00 Asia/Jakarta** (workflow timezone set on Settings).\n\nSingle digest to **legalhijra@hijra.id** of all **pending** tickets (every state except Done/Cancelled), sorted overdue-first. No email is sent when nothing is pending.\n",
+        "content": "## HLRS — Daily Pending Digest\nFill the PLACEHOLDERS before enabling:\n- **host** `YOUR_PLANE_BASE` → both HTTP node URLs and Code `WEB_BASE`\n- **`YOUR_PLANE_API_KEY`** → Plane token (X-API-Key) in both HTTP nodes\n- workspace slug = `hijra`, project id = `6328c439-cf0b-4e44-b779-73c82201fa29` — already hardcoded\n\n### Send Email (SMTP) node\nAttach an **SMTP credential**. `From` is set to **planebot@hijra.id** in the node (editable). Make sure the SMTP server/account is allowed to send as that address.\n\n### Fetch work items\nSingle `GET /issues/?per_page=1000&expand=assignees,state` — this instance returns a whole project in one page (verified: largest here is HLRS=404), so no pagination is needed. `/work-items/` 404s here, so `/issues/` is used. If a project ever exceeds 1000 issues the Build node warns and the digest shows a banner — re-add cursor pagination then.\n\n### Schedule\nDaily at **11:00 Asia/Jakarta** (workflow timezone set on Settings).\n\nSingle digest from **planebot@hijra.id** to **legalhijra@hijra.id** of all **pending** tickets (every state except Done/Cancelled), sorted overdue-first. No email is sent when nothing is pending.\n",
         "height": 470,
         "width": 540
       },

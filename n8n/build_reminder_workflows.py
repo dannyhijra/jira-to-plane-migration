@@ -41,6 +41,7 @@ PROJECTS = [
     {"key": "lrp",  "ident": "LRP",  "pid": "ec9b3331-893a-468b-89b2-f8801c97a5af", "to": "legalhijra@hijra.id"},
 ]
 SLUG = "hijra"
+DIGEST_FROM = "planebot@hijra.id"  # SMTP From for the pending-digest workflows
 
 # --- shared JS helpers, inlined at the top of each Code node ---------------
 # Tokens replaced per project: __PROJECT_ID__, __IDENT__, __DIGEST_TO__
@@ -329,7 +330,7 @@ def build(name, template_id, hour, js, send_name, sticky_md, pid, from_email):
     }
 
 
-def sticky_md(ident, hour, pid, to, kind_lines):
+def sticky_md(ident, hour, pid, from_addr, kind_lines):
     return (
         "## %s — %s\n" % (ident, kind_lines["title"])
         + "Fill the PLACEHOLDERS before enabling:\n"
@@ -337,7 +338,7 @@ def sticky_md(ident, hour, pid, to, kind_lines):
         + "- **`YOUR_PLANE_API_KEY`** → Plane token (X-API-Key) in both HTTP nodes\n"
         + "- workspace slug = `hijra`, project id = `%s` — already hardcoded\n" % pid
         + "\n### Send Email (SMTP) node\n"
-        + "Attach an **SMTP credential**. `From` is set to **%s** in the node (editable). " % to
+        + "Attach an **SMTP credential**. `From` is set to **%s** in the node (editable). " % from_addr
         + "Make sure the SMTP server/account is allowed to send as that address.\n"
         + "\n### Fetch work items\n"
         + "Single `GET /issues/?per_page=1000&expand=assignees,state` — this instance returns a whole "
@@ -376,13 +377,13 @@ def main():
             11,
             JS_DIGEST.replace("__PROJECT_ID__", pid).replace("__IDENT__", ident).replace("__DIGEST_TO__", to),
             "Send digest (SMTP)",
-            sticky_md(ident, "11", pid, to, {
+            sticky_md(ident, "11", pid, DIGEST_FROM, {
                 "title": "Daily Pending Digest",
-                "body": "Single digest to **%s** of all **pending** tickets (every state except " % to
+                "body": "Single digest from **%s** to **%s** of all **pending** tickets (every state except " % (DIGEST_FROM, to)
                         + "Done/Cancelled), sorted overdue-first. No email is sent when nothing is pending.\n",
             }),
             pid,
-            to,
+            DIGEST_FROM,
         )
 
         for fname, wf in [("%s-due-date-reminder.workflow.json" % key, wf1),
