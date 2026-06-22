@@ -12,6 +12,8 @@ Commands:
   inspect          Discover Jira-side info for a project and seed config
   run              Run the migration for a project
   verify           Compare migrated entities across Jira and Plane
+  reassign         Stage 3 — set assignees on migrated work items whose original
+                   Jira assignee has since joined Plane (reads the migration prefix)
   sync             Incrementally sync changed Jira issues to Plane (all projects, or one with --jira-project)
 
 Common options:
@@ -112,6 +114,52 @@ async function main(): Promise<void> {
         `Would sample ${values.sample} items from project ${jiraProject} and diff.`
       );
       break;
+    }
+
+    case 'reassign': {
+      const config = await loadConfig();
+      const projectCfg = config.projects[jiraProject!];
+      if (!projectCfg) {
+        logger.error(
+          `No config for project '${jiraProject}' in config/projects.yaml`
+        );
+        process.exit(1);
+      }
+      logger.info(
+        `command=reassign project=${jiraProject} dryRun=${values['dry-run']} resume=${values.resume}`
+      );
+      const { PlaneClient } = await import('./clients/plane');
+      const { JiraClient } = await import('./clients/jira');
+      const { migrateReassign } = await import('./migrators/reassign');
+      const plane = new PlaneClient(config);
+      const jira = new JiraClient(config);
+      const all = await plane.listProjects();
+      const target = all.find(
+        (p) => p.identifier === projectCfg.plane_project_identifier
+      );
+      if (!target) {
+        logger.error(
+          `Plane project '${projectCfg.plane_project_identifier}' not found — nothing migrated yet?`
+        );
+        process.exit(1);
+      }
+      const result = await migrateReassign({
+        ctx: {
+          config,
+          jiraProject: jiraProject!,
+          dryRun: values['dry-run'] ?? false,
+          batch: parseInt(values.batch ?? '50', 10),
+          limit: values.limit ? parseInt(values.limit, 10) : undefined,
+          resume: values.resume ?? false
+        },
+        jira,
+        plane,
+        planeProjectId: target.id
+      });
+      logger.info(
+        `reassign result: reassigned=${result.migrated} skipped=${result.skipped} failed=${result.failed}`
+      );
+      process.exit(result.ok ? 0 : 1);
     }
 
     case 'sync': {

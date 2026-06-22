@@ -266,6 +266,37 @@ export class PlaneClient {
   }
 
   /**
+   * Fetch a single work item by id. Used by the reassign updater to read the
+   * current `description_html` (to parse the migration prefix) and current
+   * `assignees` (to skip items that already have one).
+   */
+  async getWorkItem(
+    projectId: string,
+    workItemId: string
+  ): Promise<PlaneWorkItem> {
+    return this.request<PlaneWorkItem>(
+      this.projectPath(projectId, `/issues/${workItemId}/`)
+    );
+  }
+
+  /**
+   * Bulk-list all work items in a project, restricting the payload to the given
+   * fields (default: enough for reassignment). One paginated sweep (~100/page)
+   * instead of one GET per item — the difference between ~30 requests and
+   * thousands on a large project. `id` and `assignees` are always present in the
+   * response even when not requested; we request them explicitly to be safe.
+   */
+  async listWorkItems(
+    projectId: string,
+    fields: string[] = ['id', 'assignees', 'description_html']
+  ): Promise<PlaneWorkItem[]> {
+    const f = encodeURIComponent(fields.join(','));
+    return this.paginatedList<PlaneWorkItem>(
+      this.projectPath(projectId, `/issues/?fields=${f}`)
+    );
+  }
+
+  /**
    * Adds a comment to a Plane work item. Comment author is always the API key
    * owner — there is no API field to override it. Original Jira author is
    * preserved in the comment_html prefix at the caller (see migrators/comments.ts).
