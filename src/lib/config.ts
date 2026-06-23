@@ -3,6 +3,22 @@ import { parse as parseYaml } from 'yaml';
 
 export interface Config {
   jira: { baseUrl: string; email: string; apiToken: string };
+  /** Confluence lives on the same Atlassian site under `/wiki`. Page enumeration
+   * uses the Jira API token (Basic auth). The native PDF export endpoint
+   * (`flyingpdf`) is session-gated, so it needs a browser cookie header —
+   * same operational pattern as `plane.cookieHeader`. */
+  confluence: { baseUrl: string; cookieHeader?: string };
+  /** Google Drive upload target for the Confluence→Drive PDF pipeline. All
+   * fields optional so unrelated commands load without these env vars set.
+   * Obtain the refresh token once via scripts/google-auth.ts. */
+  google: {
+    clientId?: string;
+    clientSecret?: string;
+    refreshToken?: string;
+    driveFolderId?: string;
+    /** Set only when the destination folder lives on a Shared Drive. */
+    sharedDriveId?: string;
+  };
   plane: {
     baseUrl: string;
     apiKey: string;
@@ -139,11 +155,24 @@ export async function loadConfig(): Promise<Config> {
     >
   };
 
+  const jiraBaseUrl = requireEnv('JIRA_BASE_URL');
   return {
     jira: {
-      baseUrl: requireEnv('JIRA_BASE_URL'),
+      baseUrl: jiraBaseUrl,
       email: requireEnv('JIRA_EMAIL'),
       apiToken: requireEnv('JIRA_API_TOKEN')
+    },
+    confluence: {
+      // Same site as Jira; Confluence is served under /wiki. Override-able.
+      baseUrl: (process.env.CONFLUENCE_BASE_URL || `${jiraBaseUrl.replace(/\/$/, '')}/wiki`),
+      cookieHeader: process.env.CONFLUENCE_COOKIE_HEADER || undefined
+    },
+    google: {
+      clientId: process.env.GOOGLE_OAUTH_CLIENT_ID || undefined,
+      clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || undefined,
+      refreshToken: process.env.GOOGLE_OAUTH_REFRESH_TOKEN || undefined,
+      driveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID || undefined,
+      sharedDriveId: process.env.GOOGLE_DRIVE_ID || undefined
     },
     plane: {
       baseUrl: requireEnv('PLANE_BASE_URL'),

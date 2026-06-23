@@ -53,6 +53,7 @@ The API key owner ("migration bot") only ever appears as `created_by` and commen
 | `/migrate-sync [PROJECT]`           | Incremental sync wrapper (calls `bun run migrate sync`)    | Post-cut   |
 | `/migrate-sync-status [PROJECT]`    | Read `state/sync-state.json` and report last-run stats     | Anytime    |
 | `/migrate-form <KEY> <dir>`         | Jira form screenshots → importable n8n workflow (creates Plane work item on submit) | Post-cut |
+| `/migrate-confluence-pdf <SPACE...>` | Download Confluence pages as PDF (stage 1 of Confluence→Google-Drive)      | Side-channel |
 
 ## Skills under `.claude/skills/`
 

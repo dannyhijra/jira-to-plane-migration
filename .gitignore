@@ -7,6 +7,11 @@ state/manifest.jsonl.bak-*
 state/failures.jsonl
 state/sync-state.json
 state/.sync.lock
+# Confluence PDF export: manifest, raw debug dumps, and the downloaded PDFs
+# (large binaries, staged for the later Google Drive upload step).
+state/confluence-manifest.jsonl
+state/confluence-debug/
+confluence-pdf/
 *.log
 .DS_Store
 
