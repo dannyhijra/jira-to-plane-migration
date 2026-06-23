@@ -68,4 +68,4 @@ The cookie lasts only hours. On a long run you may see `refresh CONFLUENCE_COOKI
 - Never hand-edit `state/confluence-manifest.jsonl` — the script owns it (append-only, last line per page wins).
 - Don't commit `confluence-pdf/` or the cookie.
 
-Stage 2 (upload the PDFs to Google Drive) is a separate, not-yet-built step that consumes this manifest.
+Stage 2 — upload to Google Drive — is `/migrate-confluence-drive` (same flags + `--keep-local`). It exports and uploads in one pass, so you don't need to run this disk-only command first unless you specifically want local copies. See the `migration-confluence-drive` skill.
