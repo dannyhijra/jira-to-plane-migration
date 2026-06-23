@@ -56,7 +56,7 @@ Big spaces (ENG ≈ 2500 pages) must NOT run in one shot. `--limit N` caps **fre
 - `CONFLUENCE_BASE_URL` set without `/wiki` → Jira 404 "dead link", no `ajs-taskId`. Leave blank.
 - Confluence CQL `/rest/api/content/search` ignores the `start` offset — must paginate via the `_links.next` cursor (relevant only to the abandoned n8n approach; the current code uses the v2 cursor correctly).
 - `--page` single-page mode uploads to the folder root with no manifest/dedupe — debug only.
-- Drive appProperty values cap at 124 chars (breadcrumb is truncated).
+- Drive appProperties cap at **124 bytes for key+value combined** (UTF-8), NOT 124 chars of value. Hit live: long breadcrumbs 403'd until `confluenceBreadcrumb` was byte-truncated to `124 - key.length`. Failed pages re-upload on the next run (manifest marks them `failed`, not `ok`).
 - `drive.file` scope can't touch folders the app didn't create — symptom is a 403 on upload; fix by re-auth `--scope drive`.
 
 ## Never

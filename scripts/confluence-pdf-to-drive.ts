@@ -68,6 +68,21 @@ function parseArgs(argv: string[]): Args {
   return a;
 }
 
+/** Truncate to at most `maxBytes` UTF-8 bytes (Drive appProperty limit is 124
+ * bytes for key+value combined). Cuts on a code-unit boundary. */
+function truncateBytes(s: string, maxBytes: number): string {
+  const enc = new TextEncoder();
+  if (enc.encode(s).length <= maxBytes) return s;
+  let lo = 0;
+  let hi = s.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (enc.encode(s.slice(0, mid)).length <= maxBytes) lo = mid;
+    else hi = mid - 1;
+  }
+  return s.slice(0, lo);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const config = await loadConfig();
@@ -209,7 +224,8 @@ async function main() {
           confluencePageId: page.id,
           confluenceVersion: String(page.version),
           confluenceBranchRoot: branchRoot,
-          confluenceBreadcrumb: breadcrumb.slice(0, 124), // appProperty value cap is 124 chars
+          // Drive caps each appProperty at 124 bytes for key+value together.
+          confluenceBreadcrumb: truncateBytes(breadcrumb, 124 - "confluenceBreadcrumb".length),
         });
 
         if (args.keepLocal) {
